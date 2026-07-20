@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
+import { EmployeesModule } from './employees/employees.module';
 
 @Module({
   imports: [
@@ -12,10 +14,12 @@ import { UsersModule } from './users/users.module';
       password: process.env.DATABASE_PASSWORD || 'postgres',
       database: process.env.DATABASE_NAME || 'nestbackend',
       autoLoadEntities: true,
-      synchronize: true,
+      synchronize: true, //never use true on production
     }),
 
     UsersModule,
+    RolesModule,
+    EmployeesModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,31 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { EmployeesController } from './employees.controller';
+import { EmployeesService } from './employees.service';
+
+describe('EmployeesController', () => {
+  let controller: EmployeesController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [EmployeesController],
+      providers: [
+        {
+          provide: EmployeesService,
+          useValue: {
+            getEmployees: jest.fn(),
+            getEmployeeById: jest.fn(),
+            createEmployee: jest.fn(),
+            updateEmployee: jest.fn(),
+            deleteEmployee: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    controller = module.get<EmployeesController>(EmployeesController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
