@@ -23,22 +23,16 @@ export class Employee {
   name!: string;
 
   @Column({ nullable: true })
-  position?: string;
-
-  @Column({ nullable: true })
-  department?: string;
-
-  @Column({ nullable: true })
   phone?: string;
-
-  @Column({ nullable: true })
-  email?: string;
 
   @Column({ type: 'enum', enum: EmployeeStatus, default: EmployeeStatus.ACTIVE })
   status!: EmployeeStatus;
 
-  @Column({ nullable: true })
+  @Column()
   managerId?: number;
+
+  @Column({ nullable: false })
+  pin?: number;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'managerId' })

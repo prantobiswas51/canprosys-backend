@@ -9,8 +9,16 @@ export class User {
   @Column()
   name!: string;
 
+  @Column({ unique: true })
+  email!: string;
+
   @Column({ unique: true, nullable: true })
-  email?: string;
+  username?: string;
+
+  // select: false so plain find()/findOneBy() calls never pull the hash back
+  // out over the API by accident. Auth lookups opt in explicitly.
+  @Column({ nullable: true, select: false })
+  password?: string;
 
   @ManyToOne(() => Role)
   role!: Role;

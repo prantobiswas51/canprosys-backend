@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -15,8 +15,12 @@ export class UsersController {
     return this.usersService.getUserById(Number(id));
   }
 
-  @Post()
-  createUser(@Body() body: { name: string }) {
-    return this.usersService.createUser(body.name);
-  }
+  // Disabled: open user creation via this endpoint. Uncomment to re-enable.
+  // @Post()
+  // createUser(@Body() body: { name: string; email: string; username?: string; password?: string }) {
+  //   if (!body.email) {
+  //     throw new BadRequestException('email is required');
+  //   }
+  //   return this.usersService.createUser(body.name, body.email, body.username, body.password);
+  // }
 }

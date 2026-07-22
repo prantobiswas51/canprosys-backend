@@ -20,27 +20,6 @@ services:
     networks:
       - nestapp
 
-  app:
-    build: .
-    container_name: nestbackend_app
-    env_file:
-      - .env
-    ports:
-      - "3000:3000"
-    environment:
-      DATABASE_HOST: db
-      DATABASE_PORT: ${DATABASE_PORT}
-      DATABASE_USER: ${DATABASE_USER}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      DATABASE_NAME: ${DATABASE_NAME}
-      NODE_ENV: ${NODE_ENV}
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - nestapp
-    restart: on-failure
-
 volumes:
   postgres_data:
 
