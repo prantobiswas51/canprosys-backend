@@ -5,6 +5,8 @@ import { RolesModule } from './roles/roles.module';
 import { EmployeesModule } from './employees/employees.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuthModule } from './auth/auth.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { DailyEntryModule } from './daily-entry/daily-entry.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { AuthModule } from './auth/auth.module';
     EmployeesModule,
     TasksModule,
     AuthModule,
+    PermissionsModule,
+    DailyEntryModule,
   ],
 })
 export class AppModule {}

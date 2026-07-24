@@ -48,9 +48,12 @@ export class AuthController {
 
   // Frontend calls this on app load to check "am I already logged in?"
   // (e.g. after a page refresh, since there's no token in JS-land to check).
+  // Looks the user up fresh from the DB (with role) rather than just
+  // returning the JWT payload, so the frontend gets accurate, current data.
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@Req() req: Request) {
-    return req.user;
+    const { userId } = req.user as { userId: number };
+    return this.authService.getSafeUserById(userId);
   }
 }

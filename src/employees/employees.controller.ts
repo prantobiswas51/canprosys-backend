@@ -7,13 +7,19 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
 import type {
   CreateEmployeeInput,
   UpdateEmployeeInput,
 } from './employees.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+// Was fully unauthenticated before -- anyone who knew the URL could read,
+// create, edit, or delete employee records. Guarded now like every other
+// mutable resource in the app.
+@UseGuards(JwtAuthGuard)
 @Controller('employees')
 export class EmployeesController {
   constructor(private employeesService: EmployeesService) {}

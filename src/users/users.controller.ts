@@ -1,9 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(private usersService: UsersService) { }
 
   @Get()
   getUsers() {
@@ -14,6 +14,17 @@ export class UsersController {
   getUserById(@Param('id') id: string) {
     return this.usersService.getUserById(Number(id));
   }
+
+  @Delete(':id')
+  deleteUser(@Param('id') id: string) {
+    return this.usersService.deleteUser(Number(id));
+  }
+
+  @Patch(':id')
+  updateUser(@Param(':id') id: string) {
+    
+  }
+
 
   // Disabled: open user creation via this endpoint. Uncomment to re-enable.
   // @Post()

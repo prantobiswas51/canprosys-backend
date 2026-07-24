@@ -32,4 +32,24 @@ export class AuthService {
     const payload = { sub: user.id, username: user.username, name: user.name };
     return this.jwtService.sign(payload);
   }
+
+  // Used by GET /me -- looks the user up fresh (with role + permissions)
+  // instead of just trusting whatever was baked into the JWT payload at
+  // login time. Flattens role.permissions down to plain keys so the
+  // frontend can do simple hasPermission('tasks.create') checks.
+  async getSafeUserById(id: number) {
+    const user = await this.usersService.getUserById(id);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role ? { id: user.role.id, name: user.role.name } : undefined,
+      permissions: user.role?.permissions?.map((p) => p.key) ?? [],
+    };
+  }
 }

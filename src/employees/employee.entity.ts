@@ -28,10 +28,12 @@ export class Employee {
   @Column({ type: 'enum', enum: EmployeeStatus, default: EmployeeStatus.ACTIVE })
   status!: EmployeeStatus;
 
-  @Column()
+  // Nullable -- not surfaced in the create/edit form (no manager-picker UI
+  // built yet), so it has to be optional or creation would fail.
+  @Column({ nullable: true })
   managerId?: number;
 
-  @Column({ nullable: false })
+  @Column({ nullable: true })
   pin?: number;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

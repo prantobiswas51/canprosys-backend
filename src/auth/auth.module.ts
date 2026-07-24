@@ -5,6 +5,7 @@ import { UsersModule } from '../users/users.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { RolesGuard } from './roles.guard';
 
 @Module({
   imports: [
@@ -16,6 +17,10 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, RolesGuard],
+  // Re-export UsersModule -- RolesGuard depends on UsersService, and any
+  // module importing AuthModule to use RolesGuard needs it too (see the
+  // matching comment in permissions.module.ts for why).
+  exports: [RolesGuard, UsersModule],
 })
 export class AuthModule {}

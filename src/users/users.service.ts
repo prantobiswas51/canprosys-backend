@@ -15,7 +15,7 @@ export class UsersService {
         return this.userRepository.find();
     }
 
-    async createUser(name: string, email: string, username?: string, password?: string) {
+    async createUser(name: string, email: string, username: string, password: string) {
         const user = this.userRepository.create({
             name,
             email,
@@ -30,9 +30,14 @@ export class UsersService {
     }
 
     async getUserById(id: number) {
-        return this.userRepository.findOneBy({
-            id,
+        return this.userRepository.findOne({
+            where: { id },
+            relations: ['role', 'role.permissions'],
         });
+    }
+
+    async deleteUser(id: number) {
+        return "user " + id + " deleted";
     }
 
     // Auth-only lookup: password has select:false on the entity, so it has

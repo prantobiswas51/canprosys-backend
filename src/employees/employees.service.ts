@@ -5,11 +5,9 @@ import { Employee, EmployeeStatus } from './employee.entity';
 
 export interface CreateEmployeeInput {
   name: string;
-  position?: string;
-  department?: string;
   phone?: string;
-  email?: string;
   status?: EmployeeStatus;
+  pin?: number;
   managerId?: number;
 }
 
