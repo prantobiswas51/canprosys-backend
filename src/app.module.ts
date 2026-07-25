@@ -7,6 +7,11 @@ import { TasksModule } from './tasks/tasks.module';
 import { AuthModule } from './auth/auth.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { DailyEntryModule } from './daily-entry/daily-entry.module';
+import { RecipesModule } from './recipes/recipes.module';
+import { ProductsModule } from './products/products.module';
+import { RawmaterialsController } from './rawmaterials/rawmaterials.controller';
+import { RawmaterialsModule } from './rawmaterials/rawmaterials.module';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Module({
   imports: [
@@ -19,6 +24,13 @@ import { DailyEntryModule } from './daily-entry/daily-entry.module';
       database: process.env.DATABASE_NAME || 'nestbackend',
       autoLoadEntities: true,
       synchronize: true, //never use true on production
+      // Sets the Postgres session timezone for every connection in the pool,
+      // so SQL-side functions (NOW(), CURRENT_TIMESTAMP) and timestamp
+      // columns are interpreted/displayed as Asia/Dhaka too -- independent
+      // of the Node process's own TZ (set in main.ts).
+      extra: {
+        options: '-c timezone=Asia/Dhaka',
+      },
     }),
 
     UsersModule,
@@ -28,6 +40,11 @@ import { DailyEntryModule } from './daily-entry/daily-entry.module';
     AuthModule,
     PermissionsModule,
     DailyEntryModule,
+    RecipesModule,
+    ProductsModule,
+    RawmaterialsModule,
+    PayoutsModule,
   ],
+  controllers: [RawmaterialsController],
 })
 export class AppModule {}

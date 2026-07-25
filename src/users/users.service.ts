@@ -40,6 +40,15 @@ export class UsersService {
         return "user " + id + " deleted";
     }
 
+    async myRole(id: number) {
+        const user = await this.userRepository.findOne({
+            where: {id}
+        });
+
+
+        return user;
+    }
+
     // Auth-only lookup: password has select:false on the entity, so it has
     // to be pulled back in explicitly via addSelect for credential checks.
     async findByUsernameWithPassword(username: string) {

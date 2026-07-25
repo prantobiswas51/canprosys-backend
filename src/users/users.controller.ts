@@ -20,11 +20,6 @@ export class UsersController {
     return this.usersService.deleteUser(Number(id));
   }
 
-  @Patch(':id')
-  updateUser(@Param(':id') id: string) {
-    
-  }
-
 
   // Disabled: open user creation via this endpoint. Uncomment to re-enable.
   // @Post()

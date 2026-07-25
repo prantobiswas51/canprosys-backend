@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { DailyEntry } from './daily-entry.entity';
 import { Task } from '../tasks/task.entity';
 import { Employee } from '../employees/employee.entity';
+import { PayoutsService } from '../payouts/payouts.service';
 
 export interface CreateDailyEntryInput {
   taskId: number;
@@ -17,6 +18,7 @@ export class DailyEntryService {
     @InjectRepository(DailyEntry) private dailyEntryRepo: Repository<DailyEntry>,
     @InjectRepository(Task) private taskRepo: Repository<Task>,
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
+    private payoutsService: PayoutsService,
   ) {}
 
   getEntries() {
@@ -50,7 +52,19 @@ export class DailyEntryService {
 
     const saved = await this.dailyEntryRepo.save(entry);
     // Re-fetch with relations so the response the frontend gets back
-    // (used to prepend to the list) has task/employees populated.
-    return this.dailyEntryRepo.findOne({ where: { id: saved.id }, relations: ['task', 'employees'] });
+    // (used to prepend to the list) has task/employees populated -- also
+    // needed here since generatePayoutsForEntry reads entry.task/employees.
+    const savedWithRelations = await this.dailyEntryRepo.findOne({
+      where: { id: saved.id },
+      relations: ['task', 'employees'],
+    });
+
+    if (savedWithRelations) {
+      // Compute + save payouts right away instead of waiting for a manual
+      // "Generate Payouts" run -- one row per artisan on this entry.
+      await this.payoutsService.generatePayoutsForEntry(savedWithRelations);
+    }
+
+    return savedWithRelations;
   }
 }

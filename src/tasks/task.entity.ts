@@ -9,5 +9,8 @@ export class Task {
     name!: string;
 
     @Column()
+    slug!: string;
+
+    @Column()
     pricePerUnit!: number;
 }
