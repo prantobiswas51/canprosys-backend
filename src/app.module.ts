@@ -9,9 +9,13 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { DailyEntryModule } from './daily-entry/daily-entry.module';
 import { RecipesModule } from './recipes/recipes.module';
 import { ProductsModule } from './products/products.module';
-import { RawmaterialsController } from './rawmaterials/rawmaterials.controller';
-import { RawmaterialsModule } from './rawmaterials/rawmaterials.module';
+import { RawMaterialsModule } from './raw-materials/raw-materials.module';
+import { MaterialBatchesModule } from './material-batches/material-batches.module';
+import { MaterialConsumptionsModule } from './material-consumptions/material-consumptions.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { AiModule } from './ai/ai.module';
+import { LoansController } from './loans/loans.controller';
+import { LoansModule } from './loans/loans.module';
 
 @Module({
   imports: [
@@ -42,9 +46,13 @@ import { PayoutsModule } from './payouts/payouts.module';
     DailyEntryModule,
     RecipesModule,
     ProductsModule,
-    RawmaterialsModule,
+    RawMaterialsModule,
+    MaterialBatchesModule,
+    MaterialConsumptionsModule,
     PayoutsModule,
+    AiModule,
+    LoansModule,
   ],
-  controllers: [RawmaterialsController],
+  controllers: [LoansController],
 })
 export class AppModule {}

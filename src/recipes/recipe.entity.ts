@@ -11,7 +11,7 @@ export class Recipe{
     product!:string;
 
     @Column()
-    sizeId!:string;  //e.g. 3x4_wb
+    sku!:string;  //e.g. 3x4wb
 
     @Column()
     sizeNameBengali!:string; // e.g. ৩ × ৪ ফুট হোয়াইটবোর্ড

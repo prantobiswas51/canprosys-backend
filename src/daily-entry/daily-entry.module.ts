@@ -5,10 +5,12 @@ import { DailyEntryService } from './daily-entry.service';
 import { DailyEntry } from './daily-entry.entity';
 import { Task } from '../tasks/task.entity';
 import { Employee } from '../employees/employee.entity';
+import { Recipe } from '../recipes/recipe.entity';
+import { Product } from '../products/product.entity';
 import { PayoutsModule } from '../payouts/payouts.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DailyEntry, Task, Employee]), PayoutsModule],
+  imports: [TypeOrmModule.forFeature([DailyEntry, Task, Employee, Recipe, Product]), PayoutsModule],
   controllers: [DailyEntryController],
   providers: [DailyEntryService],
 })

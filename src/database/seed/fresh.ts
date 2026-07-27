@@ -12,6 +12,9 @@ import { Employee } from '../../employees/employee.entity';
 import { DailyEntry } from '../../daily-entry/daily-entry.entity';
 import { Product } from '../../products/product.entity';
 import { Recipe } from '../../recipes/recipe.entity';
+import { RawMaterial } from '../../raw-materials/raw-material.entity';
+import { MaterialBatch } from '../../material-batches/material-batch.entity';
+import { MaterialConsumption } from '../../material-consumptions/material-consumption.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -28,11 +31,19 @@ const dataSource = new DataSource({
   // rebuilds the WHOLE schema, so anything left out here just won't exist
   // afterward. Add new entities to this list when you create them.
   //
-  // NOT included: rawmaterials/rawmaterial.entity.ts -- it's currently a
-  // copy-paste of recipe.entity.ts (still named `class Recipe`, same
-  // fields), which would collide with the real Recipe entity on the same
-  // table name if registered. Needs fixing before it can be wired in.
-  entities: [Role, User, Permission, Task, Employee, DailyEntry, Product, Recipe],
+  entities: [
+    Role,
+    User,
+    Permission,
+    Task,
+    Employee,
+    DailyEntry,
+    Product,
+    Recipe,
+    RawMaterial,
+    MaterialBatch,
+    MaterialConsumption,
+  ],
   extra: {
     options: '-c timezone=Asia/Dhaka',
   },

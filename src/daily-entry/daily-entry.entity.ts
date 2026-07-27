@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Task } from '../tasks/task.entity';
 import { Employee } from '../employees/employee.entity';
+import { Recipe } from '../recipes/recipe.entity';
 
 @Entity()
 export class DailyEntry {
@@ -35,6 +36,21 @@ export class DailyEntry {
 
   @Column('float')
   weightKg!: number;
+
+  // Which recipe (product + size, from the BOM table) this entry's work was
+  // for. Not applicable to raw material prep tasks (Wood Slicing, Corner
+  // Cutting) since those happen before a product is chosen -- nullable for those.
+  @ManyToOne(() => Recipe, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'recipeId' })
+  recipe?: Recipe;
+
+  @Column({ nullable: true })
+  recipeId?: number;
+
+  // Snapshot of recipe.product at entry time (same pattern as Payout) so a
+  // later recipe rename/deletion doesn't retroactively change this record.
+  @Column({ nullable: true })
+  productName?: string;
 
   @CreateDateColumn()
   createdAt!: Date;

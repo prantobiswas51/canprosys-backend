@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, EntityManager, Repository } from 'typeorm';
 import { Payout } from './payout.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 
@@ -35,10 +35,20 @@ export class PayoutsService {
   // reused by the batch generatePayouts() below for backfilling past months.
   // Idempotent: if this entry's payouts already exist (e.g. it was already
   // processed automatically), it's skipped rather than duplicated.
-  async generatePayoutsForEntry(entry: DailyEntry): Promise<{ created: number; skipped: number }> {
+  //
+  // Accepts an optional transaction `manager` -- when DailyEntryService calls
+  // this from inside its own transaction, passing the manager through means
+  // these payout writes commit/rollback together with the entry save instead
+  // of being a separate, un-rollback-able write.
+  async generatePayoutsForEntry(
+    entry: DailyEntry,
+    manager?: EntityManager,
+  ): Promise<{ created: number; skipped: number }> {
     if (!entry.task || !entry.employees || entry.employees.length === 0) {
       return { created: 0, skipped: 0 };
     }
+
+    const payoutRepository = manager ? manager.getRepository(Payout) : this.payoutRepository;
 
     const weightShare = entry.weightKg / entry.employees.length;
     const ratePerUnit = entry.task.pricePerUnit;
@@ -49,7 +59,7 @@ export class PayoutsService {
     let skipped = 0;
 
     for (const employee of entry.employees) {
-      const existing = await this.payoutRepository.findOneBy({
+      const existing = await payoutRepository.findOneBy({
         dailyEntryId: entry.id,
         employeeId: employee.id,
       });
@@ -58,7 +68,7 @@ export class PayoutsService {
         continue;
       }
 
-      const payout = this.payoutRepository.create({
+      const payout = payoutRepository.create({
         employeeId: employee.id,
         employeeName: employee.name,
         taskId: entry.task.id,
@@ -69,7 +79,7 @@ export class PayoutsService {
         amount,
         periodMonth,
       });
-      await this.payoutRepository.save(payout);
+      await payoutRepository.save(payout);
       created++;
     }
 

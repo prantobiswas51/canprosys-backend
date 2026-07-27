@@ -8,4 +8,13 @@ export class Product {
 
     @Column()
     name!: string;
+
+    @Column()
+    sku!: string;
+
+    @Column()
+    costPrice!: number;
+
+    @Column()
+    stock!: number;
 }

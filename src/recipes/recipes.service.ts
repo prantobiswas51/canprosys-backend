@@ -5,7 +5,7 @@ import { Recipe } from './recipe.entity';
 
 export interface CreateRecipeInput {
   product: string;
-  sizeId: string;
+  sku: string;
   sizeNameBengali: string;
   sizeNameEnglish: string;
   woodKg: string;
