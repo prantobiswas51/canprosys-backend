@@ -6,7 +6,9 @@ import { Task } from '../tasks/task.entity';
 import { Employee } from '../employees/employee.entity';
 import { Recipe } from '../recipes/recipe.entity';
 import { Product } from '../products/product.entity';
+import { RawMaterial } from '../raw-materials/raw-material.entity';
 import { PayoutsService } from '../payouts/payouts.service';
+import { MaterialConsumptionsService } from '../material-consumptions/material-consumptions.service';
 
 // Tasks where "which product" doesn't apply yet -- raw material prep that
 // happens before a product is chosen.
@@ -15,6 +17,39 @@ const PRODUCT_NOT_APPLICABLE_SLUGS = ['wood_slicing', 'corner_cutting'];
 // Packaging is the last step in production -- once it's logged, the units
 // packaged are finished goods, so that's when we credit the Product's stock.
 const PACKAGING_SLUG = 'packaging';
+
+// Raw material catalog names this looks up, by partial case-insensitive
+// match (all keywords must appear somewhere in the name -- see
+// findRawMaterial below), to deduct BOM consumption per recipe. Partial
+// rather than exact match so small naming differences ("Board" vs "Board
+// Sheet") don't break the lookup.
+//
+// Poly is the odd one out: real-world catalogs can have TWO rows both
+// literally named "Poly" -- one bought by the piece, one by the yard -- with
+// nothing in the name itself to tell them apart. So poly additionally
+// filters on RawMaterial.unit ('piece' vs 'yard') rather than relying on the
+// name. That unit gets snapshotted onto MaterialBatch.rawMaterialUnit /
+// MaterialConsumption.rawMaterialUnit at write time, which is what actually
+// answers "was this batch Poly (Piece) or Poly (Yard)" later.
+const WOOD_KEYWORDS = ['wood'];
+const BOARD_KEYWORDS = ['board'];
+const SCREWS_HINGES_KEYWORDS = ['screw'];
+const POLY_KEYWORDS = ['poly'];
+const POLY_PIECE_UNIT = 'piece';
+const POLY_YARD_UNIT = 'yard';
+
+interface BomConsumptionNeed {
+  keywords: string[];
+  unit?: string;
+  label: string;
+  quantity: number;
+}
+
+interface ResolvedBomConsumption {
+  rawMaterial: RawMaterial;
+  label: string;
+  quantity: number;
+}
 
 export interface CreateDailyEntryInput {
   taskId: number;
@@ -31,7 +66,9 @@ export class DailyEntryService {
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
     @InjectRepository(Recipe) private recipeRepo: Repository<Recipe>,
     @InjectRepository(Product) private productRepo: Repository<Product>,
+    @InjectRepository(RawMaterial) private rawMaterialRepo: Repository<RawMaterial>,
     private payoutsService: PayoutsService,
+    private materialConsumptionsService: MaterialConsumptionsService,
   ) {}
 
   getEntries() {
@@ -79,6 +116,13 @@ export class DailyEntryService {
       );
     }
 
+    // Recipe BOM -> raw material consumption. Each unit produced (weightKg)
+    // consumes woodKg/boardSheet/screwAndHinges/polyBagQuantity per the
+    // recipe -- resolve (and validate) every raw material row this entry
+    // will need to draw from up front, before writing anything. The actual
+    // FIFO deduction across batches happens inside the transaction below.
+    const bomConsumptions = recipe ? await this.resolveBomConsumptions(recipe, data.weightKg) : [];
+
     // Everything from here on writes to the DB -- run it as one transaction
     // so a failure partway through (entry save, stock update, or payout
     // generation) can't leave a half-applied result committed.
@@ -100,6 +144,21 @@ export class DailyEntryService {
         where: { id: saved.id },
         relations: ['task', 'employees', 'recipe'],
       });
+
+      // FIFO across material_batch rows per material -- oldest batch with
+      // stock left is drawn from first, spilling into the next batch if it
+      // isn't enough. Throws (rolling back this whole transaction, entry
+      // included) if any one of them doesn't have enough stock to cover it.
+      for (const consumption of bomConsumptions) {
+        await this.materialConsumptionsService.recordConsumption(
+          {
+            rawMaterialId: consumption.rawMaterial.id,
+            quantity: consumption.quantity,
+            note: `Daily entry #${saved.id}: ${task.name} - ${recipe?.product} (${recipe?.sizeNameEnglish}) -- ${consumption.label}`,
+          },
+          manager,
+        );
+      }
 
       if (task.slug === PACKAGING_SLUG && recipe?.sku) {
         let product = await manager.findOneBy(Product, { sku: recipe.sku });
@@ -137,6 +196,70 @@ export class DailyEntryService {
 
       return savedWithRelations;
     });
+  }
+
+  // Works out how much of each raw material this entry's recipe/quantity
+  // needs, and resolves each to its RawMaterial catalog row. Recipe fields
+  // are free-text strings like "6 piece" -- parseFloat reads the leading
+  // number and ignores the rest, which is all we need. A field that parses
+  // to 0/NaN (empty/not set on this recipe) is simply skipped, not required.
+  private async resolveBomConsumptions(
+    recipe: Recipe,
+    weightKg: number,
+  ): Promise<ResolvedBomConsumption[]> {
+    const isYard = recipe.polyBagType?.trim().toLowerCase().startsWith('yard');
+    const polyUnit = isYard ? POLY_YARD_UNIT : POLY_PIECE_UNIT;
+    const polyLabel = isYard ? 'Poly (Yard)' : 'Poly (Piece)';
+
+    const needs: BomConsumptionNeed[] = [
+      { keywords: WOOD_KEYWORDS, label: 'Wood', quantity: parseFloat(recipe.woodKg) },
+      { keywords: BOARD_KEYWORDS, label: 'Board', quantity: parseFloat(recipe.boardSheet) },
+      {
+        keywords: SCREWS_HINGES_KEYWORDS,
+        label: 'Screws and Hinges',
+        quantity: parseFloat(recipe.screwAndHinges),
+      },
+      { keywords: POLY_KEYWORDS, unit: polyUnit, label: polyLabel, quantity: parseFloat(recipe.polyBagQuantity) },
+    ].map((need) => ({
+      ...need,
+      quantity: (isNaN(need.quantity) ? 0 : need.quantity) * weightKg,
+    }));
+
+    const resolved: ResolvedBomConsumption[] = [];
+    for (const need of needs) {
+      if (need.quantity <= 0) continue;
+
+      const rawMaterial = await this.findRawMaterial(need.keywords, need.unit);
+
+      if (!rawMaterial) {
+        const unitNote = need.unit ? ` with unit "${need.unit}"` : '';
+        throw new BadRequestException(
+          `Recipe "${recipe.product}" needs ${need.quantity} of ${need.label}, but no raw material with "${need.keywords.join('" and "')}" in its name${unitNote} exists -- create one on the Raw Materials Inventory page first.`,
+        );
+      }
+
+      resolved.push({ rawMaterial, label: need.label, quantity: need.quantity });
+    }
+
+    return resolved;
+  }
+
+  // Partial, case-insensitive match on name -- every keyword must appear
+  // somewhere in it (in any order), so "Screws and Hinges", "Screws &
+  // Hinges" and "Screw Set" all satisfy keywords: ['screw']. When `unit` is
+  // given, it's also matched exactly (case-insensitive) -- this is what
+  // disambiguates two rows that share the same name (e.g. "Poly" piece vs
+  // "Poly" yard) since the name-only match alone can't tell them apart.
+  private findRawMaterial(keywords: string[], unit?: string) {
+    const qb = this.rawMaterialRepo.createQueryBuilder('rm');
+    keywords.forEach((keyword, index) => {
+      const param = `keyword${index}`;
+      qb.andWhere(`rm.name ILIKE :${param}`, { [param]: `%${keyword}%` });
+    });
+    if (unit) {
+      qb.andWhere('rm.unit ILIKE :unit', { unit });
+    }
+    return qb.getOne();
   }
   //end daily entry
 

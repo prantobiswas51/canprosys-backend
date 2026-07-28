@@ -28,6 +28,12 @@ export class MaterialConsumption {
   @Column()
   rawMaterialName!: string;
 
+  // Snapshot of RawMaterial.unit at consumption time -- same reason as
+  // MaterialBatch.rawMaterialUnit: names aren't unique (e.g. "Poly" piece vs
+  // yard), so unit is what actually disambiguates which one this was.
+  @Column({ nullable: true })
+  rawMaterialUnit?: string;
+
   // Which batch this portion was drawn from -- kept for traceability. Can go
   // null if the batch itself is later deleted; the cost snapshot below still
   // holds, so historical totals stay correct either way.

@@ -51,6 +51,7 @@ export class MaterialBatchesService {
     const batch = this.batchRepository.create({
       rawMaterialId: rawMaterial.id,
       rawMaterialName: rawMaterial.name,
+      rawMaterialUnit: rawMaterial.unit,
       quantityPurchased: data.quantityPurchased,
       unitPrice: data.unitPrice,
       totalCost: data.quantityPurchased * data.unitPrice,

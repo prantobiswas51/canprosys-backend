@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { MaterialConsumption } from './material-consumption.entity';
 import { MaterialBatch } from '../material-batches/material-batch.entity';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
@@ -40,16 +40,27 @@ export class MaterialConsumptionsService {
   // spilling into the next batch if one isn't enough. Each batch touched
   // gets its own consumption row since each can carry a different unit cost
   // -- this is what makes later COGS/margin computation possible.
-  async recordConsumption(data: RecordConsumptionInput) {
+  //
+  // Accepts an optional transaction `manager` -- when another service (e.g.
+  // DailyEntryService) calls this from inside its own transaction, passing
+  // the manager through means these batch/consumption writes commit or
+  // rollback together with whatever triggered the consumption, instead of
+  // being separate, un-rollback-able writes.
+  async recordConsumption(data: RecordConsumptionInput, manager?: EntityManager) {
     if (data.quantity <= 0) {
       throw new BadRequestException('Quantity must be greater than zero');
     }
+
+    const batchRepository = manager ? manager.getRepository(MaterialBatch) : this.batchRepository;
+    const consumptionRepository = manager
+      ? manager.getRepository(MaterialConsumption)
+      : this.consumptionRepository;
 
     const rawMaterial = await this.rawMaterialsService.getRawMaterialById(
       data.rawMaterialId,
     );
 
-    const batches = await this.batchRepository.find({
+    const batches = await batchRepository.find({
       where: { rawMaterialId: rawMaterial.id },
       order: { purchaseDate: 'ASC', id: 'ASC' },
     });
@@ -73,18 +84,19 @@ export class MaterialConsumptionsService {
 
       const drawn = Math.min(batch.quantityRemaining, remainingToConsume);
       batch.quantityRemaining -= drawn;
-      await this.batchRepository.save(batch);
+      await batchRepository.save(batch);
 
-      const consumption = this.consumptionRepository.create({
+      const consumption = consumptionRepository.create({
         rawMaterialId: rawMaterial.id,
         rawMaterialName: rawMaterial.name,
+        rawMaterialUnit: rawMaterial.unit,
         materialBatchId: batch.id,
         quantity: drawn,
         unitCost: batch.unitPrice,
         totalCost: drawn * batch.unitPrice,
         note: data.note,
       });
-      created.push(await this.consumptionRepository.save(consumption));
+      created.push(await consumptionRepository.save(consumption));
 
       remainingToConsume -= drawn;
     }

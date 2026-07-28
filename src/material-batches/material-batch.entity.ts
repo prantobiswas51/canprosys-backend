@@ -27,6 +27,14 @@ export class MaterialBatch {
   @Column()
   rawMaterialName!: string;
 
+  // Snapshot of RawMaterial.unit at purchase time. Needed because names
+  // aren't guaranteed unique -- e.g. two RawMaterial rows can both be named
+  // "Poly" and only differ by unit ("piece" vs "yard"). Nullable so adding
+  // this column doesn't break existing rows; backfilled via the
+  // backfill:material-units script for batches created before this existed.
+  @Column({ nullable: true })
+  rawMaterialUnit?: string;
+
   @Column('float')
   quantityPurchased!: number;
 
