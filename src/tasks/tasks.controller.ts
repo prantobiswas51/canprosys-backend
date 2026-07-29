@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { TasksService } from './tasks.service';
+import type { UpdateTaskInput } from './tasks.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../permissions/permissions.guard';
 import { RequirePermission } from '../permissions/require-permission.decorator';
@@ -28,6 +29,18 @@ export class TasksController {
             body.name,
             body.pricePerUnit
         );
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Patch(':id')
+    updateTask(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateTaskInput) {
+        return this.tasksService.updateTask(id, body);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Delete(':id')
+    deleteTask(@Param('id', ParseIntPipe) id: number) {
+        return this.tasksService.deleteTask(id);
     }
 
 }

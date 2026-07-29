@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { RawMaterial } from './raw-material.entity';
 
 export interface CreateRawMaterialInput {
@@ -42,7 +42,23 @@ export class RawMaterialsService {
 
   async deleteRawMaterial(id: number) {
     const rawMaterial = await this.getRawMaterialById(id);
-    await this.rawMaterialRepository.remove(rawMaterial);
+    try {
+      await this.rawMaterialRepository.remove(rawMaterial);
+    } catch (err) {
+      if (this.isForeignKeyViolation(err)) {
+        throw new ConflictException(
+          `Cannot delete "${rawMaterial.name}" -- it's used in a recipe's Materials (BOM). Remove it from those recipes first.`,
+        );
+      }
+      throw err;
+    }
     return { deleted: true };
+  }
+
+  private isForeignKeyViolation(err: unknown): boolean {
+    return (
+      err instanceof QueryFailedError &&
+      (err as QueryFailedError & { code?: string }).code === '23503'
+    );
   }
 }

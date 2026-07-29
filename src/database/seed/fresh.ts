@@ -12,6 +12,8 @@ import { Employee } from '../../employees/employee.entity';
 import { DailyEntry } from '../../daily-entry/daily-entry.entity';
 import { Product } from '../../products/product.entity';
 import { Recipe } from '../../recipes/recipe.entity';
+import { RecipeTaskRate } from '../../recipes/recipe-task-rate.entity';
+import { RecipeMaterialUsage } from '../../recipes/recipe-material-usage.entity';
 import { RawMaterial } from '../../raw-materials/raw-material.entity';
 import { MaterialBatch } from '../../material-batches/material-batch.entity';
 import { MaterialConsumption } from '../../material-consumptions/material-consumption.entity';
@@ -40,6 +42,8 @@ const dataSource = new DataSource({
     DailyEntry,
     Product,
     Recipe,
+    RecipeTaskRate,
+    RecipeMaterialUsage,
     RawMaterial,
     MaterialBatch,
     MaterialConsumption,
