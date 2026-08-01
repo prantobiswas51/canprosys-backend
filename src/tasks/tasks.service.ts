@@ -3,9 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { Task } from './task.entity';
 
+export interface CreateTaskInput {
+    name: string;
+    pricePerUnit?: number | null;
+    requiresProduct?: boolean;
+}
+
 export interface UpdateTaskInput {
     name?: string;
-    pricePerUnit?: number;
+    pricePerUnit?: number | null;
+    requiresProduct?: boolean;
 }
 
 @Injectable()
@@ -19,10 +26,13 @@ export class TasksService {
         return this.taskRepository.find();
     }
 
-    async createTask(name: string, pricePerUnit: number) {
-        const slug = await this.generateUniqueSlug(name);
+    async createTask(data: CreateTaskInput) {
+        const slug = await this.generateUniqueSlug(data.name);
         const task = this.taskRepository.create({
-            name, pricePerUnit, slug,
+            name: data.name,
+            pricePerUnit: data.pricePerUnit ?? null,
+            requiresProduct: data.requiresProduct ?? true,
+            slug,
         });
 
         return this.taskRepository.save(task);
@@ -37,12 +47,13 @@ export class TasksService {
     }
 
     // Slug is intentionally left untouched on update -- daily-entry.service.ts
-    // special-cases tasks by slug (wood_slicing, corner_cutting, packaging), so
-    // renaming a task must not change the identifier that logic depends on.
+    // still special-cases Packaging by slug, so renaming a task must not
+    // change the identifier that logic depends on.
     async updateTask(id: number, data: UpdateTaskInput) {
         const task = await this.getTaskById(id);
         if (data.name !== undefined) task.name = data.name;
         if (data.pricePerUnit !== undefined) task.pricePerUnit = data.pricePerUnit;
+        if (data.requiresProduct !== undefined) task.requiresProduct = data.requiresProduct;
         return this.taskRepository.save(task);
     }
 

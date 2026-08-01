@@ -16,6 +16,10 @@ import { PayoutsModule } from './payouts/payouts.module';
 import { AiModule } from './ai/ai.module';
 import { LoansController } from './loans/loans.controller';
 import { LoansModule } from './loans/loans.module';
+import { CarsModule } from './cars/cars.module';
+import { DriversModule } from './drivers/drivers.module';
+import { ShipmentsModule } from './shipments/shipments.module';
+import { RoutesModule } from './routes/routes.module';
 
 @Module({
   imports: [
@@ -52,6 +56,10 @@ import { LoansModule } from './loans/loans.module';
     PayoutsModule,
     AiModule,
     LoansModule,
+    CarsModule,
+    DriversModule,
+    ShipmentsModule,
+    RoutesModule,
   ],
   controllers: [LoansController],
 })

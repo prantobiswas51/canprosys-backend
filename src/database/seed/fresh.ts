@@ -17,6 +17,11 @@ import { RecipeMaterialUsage } from '../../recipes/recipe-material-usage.entity'
 import { RawMaterial } from '../../raw-materials/raw-material.entity';
 import { MaterialBatch } from '../../material-batches/material-batch.entity';
 import { MaterialConsumption } from '../../material-consumptions/material-consumption.entity';
+import { Car } from '../../cars/car.entity';
+import { Driver } from '../../drivers/driver.entity';
+import { Route } from '../../routes/route.entity';
+import { Shipment } from '../../shipments/shipment.entity';
+import { ShipmentItem } from '../../shipments/shipment-item.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -47,6 +52,11 @@ const dataSource = new DataSource({
     RawMaterial,
     MaterialBatch,
     MaterialConsumption,
+    Car,
+    Driver,
+    Route,
+    Shipment,
+    ShipmentItem,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',

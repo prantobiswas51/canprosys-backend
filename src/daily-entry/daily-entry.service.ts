@@ -9,10 +9,6 @@ import { Product } from '../products/product.entity';
 import { PayoutsService } from '../payouts/payouts.service';
 import { MaterialConsumptionsService } from '../material-consumptions/material-consumptions.service';
 
-// Tasks where "which product" doesn't apply yet -- raw material prep that
-// happens before a product is chosen.
-const PRODUCT_NOT_APPLICABLE_SLUGS = ['wood_slicing', 'corner_cutting'];
-
 // Packaging is the last step in production -- once it's logged, the units
 // packaged are finished goods, so that's when we credit the Product's stock.
 const PACKAGING_SLUG = 'packaging';
@@ -59,7 +55,7 @@ export class DailyEntryService {
       throw new BadRequestException('At least one artisan is required');
     }
 
-    const productApplicable = !PRODUCT_NOT_APPLICABLE_SLUGS.includes(task.slug);
+    const productApplicable = task.requiresProduct;
     let recipe: Recipe | null = null;
     if (productApplicable) {
       if (!data.recipeId) {

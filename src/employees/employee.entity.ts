@@ -36,6 +36,13 @@ export class Employee {
   @Column({ nullable: true })
   pin?: number;
 
+  // Accrued wages in BDT -- credited automatically by PayoutsService
+  // whenever a Payout row is created for this employee (from a daily entry
+  // or a batch "Generate Payouts" run). Not directly editable on the
+  // Employees page; it's a running total, not a manual entry field.
+  @Column('float', { default: 0 })
+  balance!: number;
+
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'managerId' })
   manager?: User;

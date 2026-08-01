@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { TasksService } from './tasks.service';
-import type { UpdateTaskInput } from './tasks.service';
+import type { CreateTaskInput, UpdateTaskInput } from './tasks.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../permissions/permissions.guard';
 import { RequirePermission } from '../permissions/require-permission.decorator';
@@ -24,11 +24,8 @@ export class TasksController {
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('tasks.create')
     @Post()
-    createTask(@Body() body: { name: string; pricePerUnit: number }) {
-        return this.tasksService.createTask(
-            body.name,
-            body.pricePerUnit
-        );
+    createTask(@Body() body: CreateTaskInput) {
+        return this.tasksService.createTask(body);
     }
 
     @UseGuards(JwtAuthGuard)

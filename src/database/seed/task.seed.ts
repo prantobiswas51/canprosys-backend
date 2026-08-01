@@ -5,15 +5,19 @@ interface DemoTask {
   name: string;
   slug: string;
   pricePerUnit: number;
+  requiresProduct: boolean;
 }
 
+// Wood Slicing / Corner Cutting are raw-material prep -- they happen before
+// a specific product/recipe is chosen, so requiresProduct is false for just
+// those two.
 const DEMO_TASKS: DemoTask[] = [
-  { name: 'Wood Slicing', slug: 'wood_slicing', pricePerUnit: 20 },
-  { name: 'Corner Cutting', slug: 'corner_cutting', pricePerUnit: 16 },
-  { name: 'Frame/Easel Assembly', slug: 'frame_easel_make', pricePerUnit: 12 },
-  { name: 'Cloth/Sheet Fitting', slug: 'cloth_sheet_fitting', pricePerUnit: 34 },
-  { name: 'Gesso Painting', slug: 'gesso_painting', pricePerUnit: 56 },
-  { name: 'Packaging', slug: 'packaging', pricePerUnit: 12 },
+  { name: 'Wood Slicing', slug: 'wood_slicing', pricePerUnit: 20, requiresProduct: false },
+  { name: 'Corner Cutting', slug: 'corner_cutting', pricePerUnit: 16, requiresProduct: false },
+  { name: 'Frame/Easel Assembly', slug: 'frame_easel_make', pricePerUnit: 12, requiresProduct: true },
+  { name: 'Cloth/Sheet Fitting', slug: 'cloth_sheet_fitting', pricePerUnit: 34, requiresProduct: true },
+  { name: 'Gesso Painting', slug: 'gesso_painting', pricePerUnit: 56, requiresProduct: true },
+  { name: 'Packaging', slug: 'packaging', pricePerUnit: 12, requiresProduct: true },
 ];
 
 export async function seedTasks(dataSource: DataSource) {
