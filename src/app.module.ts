@@ -14,7 +14,6 @@ import { MaterialBatchesModule } from './material-batches/material-batches.modul
 import { MaterialConsumptionsModule } from './material-consumptions/material-consumptions.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { AiModule } from './ai/ai.module';
-import { LoansController } from './loans/loans.controller';
 import { LoansModule } from './loans/loans.module';
 import { CarsModule } from './cars/cars.module';
 import { DriversModule } from './drivers/drivers.module';
@@ -61,6 +60,5 @@ import { RoutesModule } from './routes/routes.module';
     ShipmentsModule,
     RoutesModule,
   ],
-  controllers: [LoansController],
 })
 export class AppModule {}

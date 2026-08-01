@@ -22,6 +22,7 @@ import { Driver } from '../../drivers/driver.entity';
 import { Route } from '../../routes/route.entity';
 import { Shipment } from '../../shipments/shipment.entity';
 import { ShipmentItem } from '../../shipments/shipment-item.entity';
+import { Loan } from '../../loans/loan.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -57,6 +58,7 @@ const dataSource = new DataSource({
     Route,
     Shipment,
     ShipmentItem,
+    Loan,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',
