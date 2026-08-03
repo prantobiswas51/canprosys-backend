@@ -152,9 +152,13 @@ export class PayoutsService {
     return { month, entriesProcessed: entries.length, created, skipped, noRate };
   }
 
-  getPayouts(month?: string) {
+  getPayouts(month?: string, employeeId?: number) {
+    const where: { periodMonth?: string; employeeId?: number } = {};
+    if (month) where.periodMonth = month;
+    if (employeeId != null) where.employeeId = employeeId;
+
     return this.payoutRepository.find({
-      where: month ? { periodMonth: month } : {},
+      where,
       order: { createdAt: 'DESC' },
     });
   }

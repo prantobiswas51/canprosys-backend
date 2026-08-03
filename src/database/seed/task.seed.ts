@@ -4,20 +4,21 @@ import { Task } from '../../tasks/task.entity';
 interface DemoTask {
   name: string;
   slug: string;
-  pricePerUnit: number;
+  pricePerUnit?: number;
   requiresProduct: boolean;
 }
 
 // Wood Slicing / Corner Cutting are raw-material prep -- they happen before
 // a specific product/recipe is chosen, so requiresProduct is false for just
-// those two.
+// those two, and they get a flat pricePerUnit here.
+//
+// কোনা কাটা কাঠ requires a product, so its rate comes from that recipe's
+// Artisan Wages pivot (RecipeTaskRate) instead -- no flat pricePerUnit here.
+
 const DEMO_TASKS: DemoTask[] = [
   { name: 'Wood Slicing', slug: 'wood_slicing', pricePerUnit: 20, requiresProduct: false },
   { name: 'Corner Cutting', slug: 'corner_cutting', pricePerUnit: 16, requiresProduct: false },
-  { name: 'Frame/Easel Assembly', slug: 'frame_easel_make', pricePerUnit: 12, requiresProduct: true },
-  { name: 'Cloth/Sheet Fitting', slug: 'cloth_sheet_fitting', pricePerUnit: 34, requiresProduct: true },
-  { name: 'Gesso Painting', slug: 'gesso_painting', pricePerUnit: 56, requiresProduct: true },
-  { name: 'Packaging', slug: 'packaging', pricePerUnit: 12, requiresProduct: true },
+  { name: 'কোনা কাটা কাঠ', slug: 'corner_cut_wood', requiresProduct: true },
 ];
 
 export async function seedTasks(dataSource: DataSource) {
@@ -30,6 +31,7 @@ export async function seedTasks(dataSource: DataSource) {
       continue;
     }
     await taskRepository.save(taskRepository.create(demo));
-    console.log(`Created task "${demo.name}" (${demo.slug}) -- ৳${demo.pricePerUnit}/unit`);
+    const rateNote = demo.pricePerUnit != null ? `৳${demo.pricePerUnit}/unit` : 'rate set per-recipe';
+    console.log(`Created task "${demo.name}" (${demo.slug}) -- ${rateNote}`);
   }
 }

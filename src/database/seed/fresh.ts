@@ -26,6 +26,7 @@ import { Loan } from '../../loans/loan.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
+import { seedRawMaterials } from './raw-material.seed';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -77,6 +78,7 @@ async function fresh() {
   await seedRoles(dataSource);
   await seedDemoUsers(dataSource);
   await seedTasks(dataSource);
+  await seedRawMaterials(dataSource);
 
   await dataSource.destroy();
   console.log('Fresh + seeded.');

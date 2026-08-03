@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { Shipment, ShipmentStatus } from './shipment.entity';
 import { ShipmentItem } from './shipment-item.entity';
 import { Route } from '../routes/route.entity';
@@ -34,8 +34,28 @@ export class ShipmentsService {
     @InjectRepository(Product) private productRepository: Repository<Product>,
   ) {}
 
-  getShipments() {
-    return this.shipmentRepository.find({ relations: RELATIONS, order: { createdAt: 'DESC' } });
+  // invoiceNumber: partial, case-insensitive match. date: YYYY-MM-DD,
+  // matches shipments created that calendar day (Asia/Dhaka, same as the
+  // rest of the app -- see main.ts's TZ setting).
+  getShipments(invoiceNumber?: string, date?: string) {
+    const where: FindOptionsWhere<Shipment> = {};
+
+    if (invoiceNumber?.trim()) {
+      where.invoiceNumber = ILike(`%${invoiceNumber.trim()}%`);
+    }
+
+    if (date?.trim()) {
+      const start = new Date(`${date.trim()}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      where.createdAt = Between(start, end);
+    }
+
+    return this.shipmentRepository.find({
+      where,
+      relations: RELATIONS,
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async getShipmentById(id: number) {
@@ -92,10 +112,13 @@ export class ShipmentsService {
     }
 
     return this.shipmentRepository.manager.transaction(async (manager) => {
+      const invoiceNumber = await this.generateUniqueInvoiceNumber(manager.getRepository(Shipment));
+
       const shipment = manager.create(Shipment, {
         routeId: route.id,
         carId: car.id,
         driverId: driver.id,
+        invoiceNumber,
         note: data.note,
         totalCost: data.totalCost,
         status: ShipmentStatus.IN_TRANSIT,
@@ -129,5 +152,19 @@ export class ShipmentsService {
 
       return manager.findOne(Shipment, { where: { id: savedShipment.id }, relations: RELATIONS });
     });
+  }
+
+  // SHP-<10 random digits>, e.g. SHP-4827193056. Not user-entered -- every
+  // shipment gets one automatically. Collision odds are ~1 in 10 billion,
+  // but check-and-retry anyway rather than trust that.
+  private async generateUniqueInvoiceNumber(shipmentRepository: Repository<Shipment>) {
+    let invoiceNumber: string;
+    let exists: Shipment | null;
+    do {
+      const digits = Math.floor(1_000_000_000 + Math.random() * 9_000_000_000);
+      invoiceNumber = `SHP-${digits}`;
+      exists = await shipmentRepository.findOneBy({ invoiceNumber });
+    } while (exists);
+    return invoiceNumber;
   }
 }

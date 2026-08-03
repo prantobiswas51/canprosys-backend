@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ShipmentsService } from './shipments.service';
 import type { CreateShipmentInput } from './shipments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -9,8 +9,8 @@ export class ShipmentsController {
   constructor(private shipmentsService: ShipmentsService) {}
 
   @Get()
-  getShipments() {
-    return this.shipmentsService.getShipments();
+  getShipments(@Query('invoiceNumber') invoiceNumber?: string, @Query('date') date?: string) {
+    return this.shipmentsService.getShipments(invoiceNumber, date);
   }
 
   @Get(':id')

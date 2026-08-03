@@ -5,9 +5,11 @@ import { Role } from '../../roles/role.entity';
 import { User } from '../../users/user.entity';
 import { Permission } from '../../permissions/permission.entity';
 import { Task } from '../../tasks/task.entity';
+import { RawMaterial } from '../../raw-materials/raw-material.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
+import { seedRawMaterials } from './raw-material.seed';
 
 // Was hardcoded to host/port/credentials that don't match .env (port 5432
 // vs the real 5433) -- now reads the same env vars app.module.ts uses, so
@@ -22,7 +24,7 @@ const dataSource = new DataSource({
   // Permission has to be listed too -- Role has a ManyToMany to it, and
   // TypeORM needs every entity in a relation registered on the DataSource
   // or it throws resolving the relation metadata.
-  entities: [Role, User, Permission, Task],
+  entities: [Role, User, Permission, Task, RawMaterial],
   extra: {
     options: '-c timezone=Asia/Dhaka',
   },
@@ -35,6 +37,7 @@ async function seed() {
   await seedRoles(dataSource);
   await seedDemoUsers(dataSource);
   await seedTasks(dataSource);
+  await seedRawMaterials(dataSource);
 
   await dataSource.destroy();
   console.log('Seed complete.');

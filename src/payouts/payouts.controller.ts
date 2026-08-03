@@ -21,9 +21,10 @@ export class PayoutsController {
     return this.payoutsService.getPayoutSummary(month);
   }
 
-  // Raw rows, optionally filtered by month -- for an audit/detail view later.
+  // Raw rows, optionally filtered by month and/or employee -- used for the
+  // audit view and for the per-employee payout history popup.
   @Get()
-  getAll(@Query('month') month?: string) {
-    return this.payoutsService.getPayouts(month);
+  getAll(@Query('month') month?: string, @Query('employeeId') employeeId?: string) {
+    return this.payoutsService.getPayouts(month, employeeId ? Number(employeeId) : undefined);
   }
 }

@@ -22,7 +22,10 @@ export class Employee {
   @Column()
   name!: string;
 
-  @Column({ nullable: true })
+  // Unique so the same phone number can't be registered to two employees --
+  // nullable + unique is fine in Postgres, multiple NULLs are allowed under
+  // a unique constraint (only actual duplicate values are rejected).
+  @Column({ nullable: true, unique: true })
   phone?: string;
 
   @Column({ type: 'enum', enum: EmployeeStatus, default: EmployeeStatus.ACTIVE })

@@ -11,4 +11,7 @@ export class RawMaterial{
 
     @Column()
     unit!:string;
+
+    @Column({ unique: true })
+    slug!: string;
 }

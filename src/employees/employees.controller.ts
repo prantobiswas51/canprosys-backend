@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
@@ -25,8 +26,8 @@ export class EmployeesController {
   constructor(private employeesService: EmployeesService) {}
 
   @Get()
-  getEmployees() {
-    return this.employeesService.getEmployees();
+  getEmployees(@Query('search') search?: string) {
+    return this.employeesService.getEmployees(search);
   }
 
   @Get(':id')

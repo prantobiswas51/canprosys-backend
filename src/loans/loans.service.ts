@@ -51,9 +51,13 @@ export class LoansService {
     });
   }
 
-  getLoans(month?: string) {
+  getLoans(month?: string, employeeId?: number) {
+    const where: { periodMonth?: string; employeeId?: number } = {};
+    if (month) where.periodMonth = month;
+    if (employeeId != null) where.employeeId = employeeId;
+
     return this.loanRepository.find({
-      where: month ? { periodMonth: month } : {},
+      where,
       order: { givenDate: 'DESC', createdAt: 'DESC' },
     });
   }

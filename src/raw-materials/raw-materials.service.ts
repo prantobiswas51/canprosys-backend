@@ -29,8 +29,9 @@ export class RawMaterialsService {
     return rawMaterial;
   }
 
-  createRawMaterial(data: CreateRawMaterialInput) {
-    const rawMaterial = this.rawMaterialRepository.create(data);
+  async createRawMaterial(data: CreateRawMaterialInput) {
+    const slug = await this.generateUniqueSlug(data.name);
+    const rawMaterial = this.rawMaterialRepository.create({ ...data, slug });
     return this.rawMaterialRepository.save(rawMaterial);
   }
 
@@ -60,5 +61,25 @@ export class RawMaterialsService {
       err instanceof QueryFailedError &&
       (err as QueryFailedError & { code?: string }).code === '23503'
     );
+  }
+
+  // Derived from the name ("Poly Bag" -> "poly_bag"), same pattern as
+  // Task's slug -- de-dupes against existing slugs so two materials never
+  // collide. Left untouched on update/rename.
+  private async generateUniqueSlug(name: string) {
+    const base =
+      name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'material';
+
+    let slug = base;
+    let suffix = 2;
+    while (await this.rawMaterialRepository.findOneBy({ slug })) {
+      slug = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    return slug;
   }
 }
