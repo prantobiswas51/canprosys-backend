@@ -1,21 +1,35 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { DailyEntry } from './daily-entry.entity';
 import { Task } from '../tasks/task.entity';
 import { Employee, EmployeeStatus } from '../employees/employee.entity';
 import { Recipe } from '../recipes/recipe.entity';
 import { Product } from '../products/product.entity';
+import { RawMaterial } from '../raw-materials/raw-material.entity';
+import { MaterialBatch } from '../material-batches/material-batch.entity';
 import { PayoutsService } from '../payouts/payouts.service';
 import { MaterialConsumptionsService } from '../material-consumptions/material-consumptions.service';
 
-// Packaging is the only step that touches raw material stock -- it's the
-// last step in production, so that's when the recipe's BOM actually gets
-// consumed and the resulting units get credited to the Product's stock.
-// Every other task (Wood Slicing, Corner Cutting, কোনা কাটা কাঠ, etc.) is
-// just a record of work done and drives wage/payout calculation only -- no
-// raw material or finished-goods stock changes.
+// Packaging is the last step in production -- that's when a recipe's BOM
+// (screws, poly, corner_cut_wood, etc.) actually gets consumed and the
+// resulting units get credited to the Product's stock.
 const PACKAGING_SLUG = 'packaging';
+
+// Wood processing pipeline: raw_wood -> [Wood Slicing] -> sliced_wood ->
+// [Corner Cutting] -> corner_cut_wood, and it stops there -- corner_cut_wood
+// isn't auto-transformed into anything further. It only gets consumed later
+// the same way any other BOM raw material (screw, poly, ...) does: as a line
+// in a recipe's Materials (BOM), drawn down when that recipe is packaged
+// (see bomConsumptions below). So:
+//   raw_wood       -- only ever reduced here (added to via Purchase batches)
+//   sliced_wood     -- added to (from raw_wood) AND reduced (into corner_cut_wood)
+//   corner_cut_wood -- only ever added to here (reduced later via Packaging's BOM)
+const WOOD_SLICING_SLUG = 'wood_slicing';
+const CORNER_CUTTING_SLUG = 'corner_cutting';
+const RAW_WOOD_SLUG = 'raw_wood';
+const SLICED_WOOD_SLUG = 'sliced_wood';
+const CORNER_CUT_WOOD_SLUG = 'corner_cut_wood';
 
 interface ResolvedBomConsumption {
   rawMaterialId: number;
@@ -38,6 +52,8 @@ export class DailyEntryService {
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
     @InjectRepository(Recipe) private recipeRepo: Repository<Recipe>,
     @InjectRepository(Product) private productRepo: Repository<Product>,
+    @InjectRepository(RawMaterial) private rawMaterialRepo: Repository<RawMaterial>,
+    @InjectRepository(MaterialBatch) private materialBatchRepo: Repository<MaterialBatch>,
     private payoutsService: PayoutsService,
     private materialConsumptionsService: MaterialConsumptionsService,
   ) {}
@@ -163,6 +179,40 @@ export class DailyEntryService {
         );
       }
 
+      if (task.slug === WOOD_SLICING_SLUG) {
+        await this.consumeRawMaterialBySlug(
+          manager,
+          RAW_WOOD_SLUG,
+          data.weightKg,
+          `Daily entry #${saved.id}: ${task.name}`,
+        );
+        await this.produceRawMaterialBySlug(
+          manager,
+          SLICED_WOOD_SLUG,
+          'কাটা কাঠ',
+          'kg',
+          data.weightKg,
+          task.name,
+        );
+      }
+
+      if (task.slug === CORNER_CUTTING_SLUG) {
+        await this.consumeRawMaterialBySlug(
+          manager,
+          SLICED_WOOD_SLUG,
+          data.weightKg,
+          `Daily entry #${saved.id}: ${task.name}`,
+        );
+        await this.produceRawMaterialBySlug(
+          manager,
+          CORNER_CUT_WOOD_SLUG,
+          'কোনা কাটা কাঠ',
+          'kg',
+          data.weightKg,
+          task.name,
+        );
+      }
+
       if (task.slug === PACKAGING_SLUG && recipe?.sku) {
         let product = await manager.findOneBy(Product, { sku: recipe.sku });
 
@@ -199,5 +249,66 @@ export class DailyEntryService {
 
       return savedWithRelations;
     });
+  }
+
+  // FIFO-consumes `quantity` from an existing raw material's batches, found
+  // by slug. Throws if that material doesn't exist yet or doesn't have
+  // enough stock -- rolling back the whole entry, same as a recipe's BOM
+  // consumption does.
+  private async consumeRawMaterialBySlug(
+    manager: EntityManager,
+    slug: string,
+    quantity: number,
+    note: string,
+  ) {
+    const rawMaterial = await manager.findOneBy(RawMaterial, { slug });
+    if (!rawMaterial) {
+      throw new BadRequestException(
+        `Raw material "${slug}" not found -- seed it or add it on the Raw Materials Inventory page first.`,
+      );
+    }
+    await this.materialConsumptionsService.recordConsumption(
+      { rawMaterialId: rawMaterial.id, quantity, note },
+      manager,
+    );
+  }
+
+  // Adds `quantity` of stock to a raw material (found or created by slug) as
+  // a new batch -- this is production, not a purchase, so unitPrice is 0.
+  // Everything else follows the normal batch shape so it shows up in
+  // Inventory and FIFO-consumes like any other batch.
+  private async produceRawMaterialBySlug(
+    manager: EntityManager,
+    slug: string,
+    fallbackName: string,
+    unit: string,
+    quantity: number,
+    logLabel: string,
+  ) {
+    let rawMaterial = await manager.findOneBy(RawMaterial, { slug });
+
+    if (!rawMaterial) {
+      // Should normally already exist via the raw material seeder -- this
+      // is just a safety net for a DB that hasn't been seeded.
+      rawMaterial = manager.create(RawMaterial, { name: fallbackName, unit, slug });
+      rawMaterial = await manager.save(rawMaterial);
+      console.log(`[${logLabel}] No raw material existed for "${slug}" -- created it.`);
+    }
+
+    const batch = manager.create(MaterialBatch, {
+      rawMaterialId: rawMaterial.id,
+      rawMaterialName: rawMaterial.name,
+      rawMaterialUnit: rawMaterial.unit,
+      quantityPurchased: quantity,
+      unitPrice: 0,
+      totalCost: 0,
+      quantityRemaining: quantity,
+      purchaseDate: new Date().toISOString().slice(0, 10),
+    });
+    await manager.save(batch);
+
+    console.log(
+      `[${logLabel}] +${quantity} ${rawMaterial.unit} added to "${rawMaterial.name}" stock (batch #${batch.id}).`,
+    );
   }
 }
