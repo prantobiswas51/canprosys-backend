@@ -10,6 +10,7 @@ import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
 import { seedRawMaterials } from './raw-material.seed';
+import { seedPermissions } from './permission.seed';
 
 // Was hardcoded to host/port/credentials that don't match .env (port 5432
 // vs the real 5433) -- now reads the same env vars app.module.ts uses, so
@@ -38,6 +39,7 @@ async function seed() {
   await seedDemoUsers(dataSource);
   await seedTasks(dataSource);
   await seedRawMaterials(dataSource);
+  await seedPermissions(dataSource);
 
   await dataSource.destroy();
   console.log('Seed complete.');

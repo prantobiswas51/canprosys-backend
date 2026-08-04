@@ -8,7 +8,7 @@ export interface CreateMaterialBatchInput {
   rawMaterialId: number;
   quantityPurchased: number;
   unitPrice: number;
-  purchaseDate?: string;
+  purchaseDate: string;
 }
 
 export type UpdateMaterialBatchInput = Partial<CreateMaterialBatchInput>;
@@ -42,6 +42,9 @@ export class MaterialBatchesService {
     }
     if (data.unitPrice < 0) {
       throw new BadRequestException('Unit price cannot be negative');
+    }
+    if (!data.purchaseDate) {
+      throw new BadRequestException('Purchase date is required');
     }
 
     const rawMaterial = await this.rawMaterialsService.getRawMaterialById(

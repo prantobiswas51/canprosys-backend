@@ -26,6 +26,7 @@ import { Loan } from '../../loans/loan.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
+import { seedPermissions } from './permission.seed';
 import { seedRawMaterials } from './raw-material.seed';
 
 const dataSource = new DataSource({
@@ -79,6 +80,7 @@ async function fresh() {
   await seedDemoUsers(dataSource);
   await seedTasks(dataSource);
   await seedRawMaterials(dataSource);
+  await seedPermissions(dataSource);
 
   await dataSource.destroy();
   console.log('Fresh + seeded.');

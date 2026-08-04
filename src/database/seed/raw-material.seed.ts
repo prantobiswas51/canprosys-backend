@@ -12,9 +12,9 @@ interface DemoRawMaterial {
 // its real Bengali name and unit up front, instead of relying on that
 // task's English fallback name the first time it runs.
 const DEMO_RAW_MATERIALS: DemoRawMaterial[] = [
-  { name: 'কোনা কাটা কাঠ', unit: 'kg', slug: 'corner_cut_wood' },
   { name: 'কাচা কাঠ', unit: 'kg', slug: 'raw_wood' },
   { name: 'কাটা কাঠ', unit: 'kg', slug: 'sliced_wood' },
+  { name: 'কোনা কাটা কাঠ', unit: 'kg', slug: 'corner_cut_wood' },
 ];
 
 export async function seedRawMaterials(dataSource: DataSource) {

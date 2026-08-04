@@ -19,6 +19,7 @@ const DEMO_TASKS: DemoTask[] = [
   { name: 'Wood Slicing', slug: 'wood_slicing', pricePerUnit: 20, requiresProduct: false },
   { name: 'Corner Cutting', slug: 'corner_cutting', pricePerUnit: 16, requiresProduct: false },
   { name: 'কোনা কাটা কাঠ', slug: 'corner_cut_wood', requiresProduct: true },
+  { name: 'প্যাকেজিং', slug: 'packaging', requiresProduct: true },
 ];
 
 export async function seedTasks(dataSource: DataSource) {
