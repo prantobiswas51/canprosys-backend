@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MaterialBatch } from './material-batch.entity';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
+import { round } from '../common/round';
 
 export interface CreateMaterialBatchInput {
   rawMaterialId: number;
@@ -57,7 +58,7 @@ export class MaterialBatchesService {
       rawMaterialUnit: rawMaterial.unit,
       quantityPurchased: data.quantityPurchased,
       unitPrice: data.unitPrice,
-      totalCost: data.quantityPurchased * data.unitPrice,
+      totalCost: round(data.quantityPurchased * data.unitPrice),
       quantityRemaining: data.quantityPurchased,
       purchaseDate: data.purchaseDate,
     });
@@ -79,7 +80,7 @@ export class MaterialBatchesService {
           `Cannot reduce quantity below what's already been consumed (${alreadyConsumed})`,
         );
       }
-      batch.quantityRemaining = data.quantityPurchased - alreadyConsumed;
+      batch.quantityRemaining = round(data.quantityPurchased - alreadyConsumed);
       batch.quantityPurchased = data.quantityPurchased;
     }
 
@@ -90,7 +91,7 @@ export class MaterialBatchesService {
       batch.unitPrice = data.unitPrice;
     }
 
-    batch.totalCost = batch.quantityPurchased * batch.unitPrice;
+    batch.totalCost = round(batch.quantityPurchased * batch.unitPrice);
 
     if (data.purchaseDate != null) {
       batch.purchaseDate = data.purchaseDate;

@@ -23,11 +23,22 @@ import { Route } from '../../routes/route.entity';
 import { Shipment } from '../../shipments/shipment.entity';
 import { ShipmentItem } from '../../shipments/shipment-item.entity';
 import { Loan } from '../../loans/loan.entity';
+import { Payout } from '../../payouts/payout.entity';
+import { WoodType } from '../../wood-processing/wood-type.entity';
+import { WoodStage } from '../../wood-processing/wood-stage.entity';
+import { WoodStockBatch } from '../../wood-processing/wood-stock-batch.entity';
+import { WoodProcessingConsumption } from '../../wood-processing/wood-processing-consumption.entity';
+import { WoodProcessingEntry } from '../../wood-processing/wood-processing-entry.entity';
+import { WasteType } from '../../waste-management/waste-type.entity';
+import { WasteBatch } from '../../waste-management/waste-batch.entity';
+import { WasteSale } from '../../waste-management/waste-sale.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
 import { seedPermissions } from './permission.seed';
 import { seedRawMaterials } from './raw-material.seed';
+import { seedWasteTypes } from './waste-type.seed';
+import { seedWoodTypes, seedWoodStages } from './wood-processing.seed';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -61,6 +72,15 @@ const dataSource = new DataSource({
     Shipment,
     ShipmentItem,
     Loan,
+    Payout,
+    WoodType,
+    WoodStage,
+    WoodStockBatch,
+    WoodProcessingConsumption,
+    WoodProcessingEntry,
+    WasteType,
+    WasteBatch,
+    WasteSale,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',
@@ -81,6 +101,9 @@ async function fresh() {
   await seedTasks(dataSource);
   await seedRawMaterials(dataSource);
   await seedPermissions(dataSource);
+  await seedWasteTypes(dataSource);
+  await seedWoodTypes(dataSource);
+  await seedWoodStages(dataSource);
 
   await dataSource.destroy();
   console.log('Fresh + seeded.');

@@ -7,14 +7,15 @@ interface DemoRawMaterial {
   slug: string;
 }
 
-// corner_cut_wood is what the Corner Cutting task produces automatically
-// (see CORNER_CUTTING_SLUG in daily-entry.service.ts) -- seeded here with
-// its real Bengali name and unit up front, instead of relying on that
-// task's English fallback name the first time it runs.
+// Raw wood and sliced wood no longer live here -- they're purely internal
+// to the Wood Processing module now (WoodType, not RawMaterial). Only the
+// two FINAL wood products stay as RawMaterial rows, since that's the
+// boundary Packaging's BOM consumption needs (it only knows how to draw
+// from RawMaterial/MaterialBatch). See wood-processing.seed.ts, where each
+// final WoodStage is wired to mirror its output into one of these two rows.
 const DEMO_RAW_MATERIALS: DemoRawMaterial[] = [
-  { name: 'কাচা কাঠ', unit: 'kg', slug: 'raw_wood' },
-  { name: 'কাটা কাঠ', unit: 'kg', slug: 'sliced_wood' },
   { name: 'কোনা কাটা কাঠ', unit: 'kg', slug: 'corner_cut_wood' },
+  { name: 'কোনা কাটা ও ঢাল কাটা কাঠ', unit: 'kg', slug: 'corner_and_slant_cut_wood' },
 ];
 
 export async function seedRawMaterials(dataSource: DataSource) {

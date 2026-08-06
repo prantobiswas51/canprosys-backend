@@ -5,6 +5,7 @@ import { Payout } from './payout.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 import { Employee } from '../employees/employee.entity';
 import { RecipeTaskRate } from '../recipes/recipe-task-rate.entity';
+import { round } from '../common/round';
 
 export interface PayoutSummaryRow {
   employeeId: number;
@@ -86,8 +87,8 @@ export class PayoutsService {
       return { created: 0, skipped: 0, noRate: entry.employees.length };
     }
 
-    const weightShare = entry.weightKg / entry.employees.length;
-    const amount = weightShare * ratePerUnit;
+    const weightShare = round(entry.weightKg / entry.employees.length);
+    const amount = round(weightShare * ratePerUnit);
     const periodMonth = entry.createdAt.toISOString().slice(0, 7);
 
     let created = 0;
@@ -175,9 +176,9 @@ export class PayoutsService {
         entryCount: 0,
         totalPayout: 0,
       };
-      row.totalWeight += p.weightShare;
+      row.totalWeight = round(row.totalWeight + p.weightShare);
       row.entryCount += 1;
-      row.totalPayout += p.amount;
+      row.totalPayout = round(row.totalPayout + p.amount);
       map.set(p.employeeId, row);
     }
 

@@ -19,6 +19,8 @@ import { CarsModule } from './cars/cars.module';
 import { DriversModule } from './drivers/drivers.module';
 import { ShipmentsModule } from './shipments/shipments.module';
 import { RoutesModule } from './routes/routes.module';
+import { WoodProcessingModule } from './wood-processing/wood-processing.module';
+import { WasteManagementModule } from './waste-management/waste-management.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { RoutesModule } from './routes/routes.module';
     DriversModule,
     ShipmentsModule,
     RoutesModule,
+    WoodProcessingModule,
+    WasteManagementModule,
   ],
 })
 export class AppModule {}

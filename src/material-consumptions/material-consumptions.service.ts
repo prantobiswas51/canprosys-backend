@@ -4,6 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { MaterialConsumption } from './material-consumption.entity';
 import { MaterialBatch } from '../material-batches/material-batch.entity';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
+import { round } from '../common/round';
 
 export interface RecordConsumptionInput {
   rawMaterialId: number;
@@ -83,7 +84,7 @@ export class MaterialConsumptionsService {
       if (remainingToConsume <= 0) break;
 
       const drawn = Math.min(batch.quantityRemaining, remainingToConsume);
-      batch.quantityRemaining -= drawn;
+      batch.quantityRemaining = round(batch.quantityRemaining - drawn);
       await batchRepository.save(batch);
 
       const consumption = consumptionRepository.create({
@@ -93,7 +94,7 @@ export class MaterialConsumptionsService {
         materialBatchId: batch.id,
         quantity: drawn,
         unitCost: batch.unitPrice,
-        totalCost: drawn * batch.unitPrice,
+        totalCost: round(drawn * batch.unitPrice),
         note: data.note,
       });
       created.push(await consumptionRepository.save(consumption));
@@ -114,7 +115,7 @@ export class MaterialConsumptionsService {
         id: consumption.materialBatchId,
       });
       if (batch) {
-        batch.quantityRemaining += consumption.quantity;
+        batch.quantityRemaining = round(batch.quantityRemaining + consumption.quantity);
         await this.batchRepository.save(batch);
       }
     }

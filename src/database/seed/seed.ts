@@ -6,11 +6,16 @@ import { User } from '../../users/user.entity';
 import { Permission } from '../../permissions/permission.entity';
 import { Task } from '../../tasks/task.entity';
 import { RawMaterial } from '../../raw-materials/raw-material.entity';
+import { WoodType } from '../../wood-processing/wood-type.entity';
+import { WoodStage } from '../../wood-processing/wood-stage.entity';
+import { WasteType } from '../../waste-management/waste-type.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
 import { seedRawMaterials } from './raw-material.seed';
 import { seedPermissions } from './permission.seed';
+import { seedWasteTypes } from './waste-type.seed';
+import { seedWoodTypes, seedWoodStages } from './wood-processing.seed';
 
 // Was hardcoded to host/port/credentials that don't match .env (port 5432
 // vs the real 5433) -- now reads the same env vars app.module.ts uses, so
@@ -25,7 +30,7 @@ const dataSource = new DataSource({
   // Permission has to be listed too -- Role has a ManyToMany to it, and
   // TypeORM needs every entity in a relation registered on the DataSource
   // or it throws resolving the relation metadata.
-  entities: [Role, User, Permission, Task, RawMaterial],
+  entities: [Role, User, Permission, Task, RawMaterial, WoodType, WoodStage, WasteType],
   extra: {
     options: '-c timezone=Asia/Dhaka',
   },
@@ -40,6 +45,9 @@ async function seed() {
   await seedTasks(dataSource);
   await seedRawMaterials(dataSource);
   await seedPermissions(dataSource);
+  await seedWasteTypes(dataSource);
+  await seedWoodTypes(dataSource);
+  await seedWoodStages(dataSource);
 
   await dataSource.destroy();
   console.log('Seed complete.');
