@@ -4,6 +4,7 @@ import { EntityManager, Repository } from 'typeorm';
 import { MaterialConsumption } from './material-consumption.entity';
 import { MaterialBatch } from '../material-batches/material-batch.entity';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
+import { WoodStockService } from '../wood-processing/wood-stock.service';
 import { round } from '../common/round';
 
 export interface RecordConsumptionInput {
@@ -20,6 +21,7 @@ export class MaterialConsumptionsService {
     @InjectRepository(MaterialBatch)
     private batchRepository: Repository<MaterialBatch>,
     private rawMaterialsService: RawMaterialsService,
+    private woodStockService: WoodStockService,
   ) {}
 
   getConsumptions(rawMaterialId?: number) {
@@ -101,6 +103,16 @@ export class MaterialConsumptionsService {
 
       remainingToConsume -= drawn;
     }
+
+    // If this raw material is the mirrored output of a wood-processing
+    // stage (e.g. Packaging drawing on কোনা কাটা কাঠ), keep that module's
+    // own stock view in sync -- same quantity, oldest WoodStockBatch first.
+    // No-op for any raw material that isn't wood-processing output.
+    await this.woodStockService.syncConsumptionFromRawMaterial(
+      rawMaterial.id,
+      data.quantity,
+      manager,
+    );
 
     return created;
   }

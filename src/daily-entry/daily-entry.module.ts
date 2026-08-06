@@ -9,12 +9,14 @@ import { Recipe } from '../recipes/recipe.entity';
 import { Product } from '../products/product.entity';
 import { PayoutsModule } from '../payouts/payouts.module';
 import { MaterialConsumptionsModule } from '../material-consumptions/material-consumptions.module';
+import { RecipesModule } from '../recipes/recipes.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([DailyEntry, Task, Employee, Recipe, Product]),
     PayoutsModule,
     MaterialConsumptionsModule,
+    RecipesModule,
   ],
   controllers: [DailyEntryController],
   providers: [DailyEntryService],

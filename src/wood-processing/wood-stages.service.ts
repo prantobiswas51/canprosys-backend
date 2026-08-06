@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { WoodStage } from './wood-stage.entity';
 import { WoodTypesService } from './wood-types.service';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
@@ -16,7 +16,14 @@ export interface CreateWoodStageInput {
   defaultWasteTypeId?: number;
 }
 
-export type UpdateWoodStageInput = Partial<CreateWoodStageInput> & { active?: boolean };
+// mirrorToRawMaterialId/defaultWasteTypeId can be explicitly set to null on
+// update (to clear a previously-set value) -- undefined still means "leave
+// this field alone", null means "unset it".
+export type UpdateWoodStageInput = Partial<Omit<CreateWoodStageInput, 'mirrorToRawMaterialId' | 'defaultWasteTypeId'>> & {
+  active?: boolean;
+  mirrorToRawMaterialId?: number | null;
+  defaultWasteTypeId?: number | null;
+};
 
 @Injectable()
 export class WoodStagesService {
@@ -110,7 +117,23 @@ export class WoodStagesService {
 
   async deleteWoodStage(id: number) {
     const stage = await this.getWoodStageById(id);
-    await this.woodStageRepository.remove(stage);
+    try {
+      await this.woodStageRepository.remove(stage);
+    } catch (err) {
+      if (this.isForeignKeyViolation(err)) {
+        throw new ConflictException(
+          `Cannot delete "${stage.name}" -- it has processing entries logged against it. Those records need to stay traceable to their stage.`,
+        );
+      }
+      throw err;
+    }
     return { deleted: true };
+  }
+
+  private isForeignKeyViolation(err: unknown): boolean {
+    return (
+      err instanceof QueryFailedError &&
+      (err as QueryFailedError & { code?: string }).code === '23503'
+    );
   }
 }

@@ -8,6 +8,7 @@ import { Recipe } from '../recipes/recipe.entity';
 import { Product } from '../products/product.entity';
 import { PayoutsService } from '../payouts/payouts.service';
 import { MaterialConsumptionsService } from '../material-consumptions/material-consumptions.service';
+import { RecipesService } from '../recipes/recipes.service';
 import { round } from '../common/round';
 
 // Packaging is the last step in production -- that's when a recipe's BOM
@@ -40,6 +41,7 @@ export class DailyEntryService {
     @InjectRepository(Product) private productRepo: Repository<Product>,
     private payoutsService: PayoutsService,
     private materialConsumptionsService: MaterialConsumptionsService,
+    private recipesService: RecipesService,
   ) {}
 
   getEntries() {
@@ -68,9 +70,11 @@ export class DailyEntryService {
       // materialUsages relation needed here -- that's the recipe's BOM,
       // resolved below into actual raw material deductions (only applied
       // when this task is Packaging -- see bomConsumptions below).
+      // taskRates needed alongside materialUsages now, too -- both feed the
+      // per-unit cost computed below when this is a Packaging entry.
       recipe = await this.recipeRepo.findOne({
         where: { id: data.recipeId },
-        relations: ['materialUsages'],
+        relations: ['materialUsages', 'taskRates'],
       });
       if (!recipe) {
         throw new NotFoundException('Recipe not found');
@@ -166,21 +170,28 @@ export class DailyEntryService {
       if (task.slug === PACKAGING_SLUG && recipe?.sku) {
         let product = await manager.findOneBy(Product, { sku: recipe.sku });
 
+        // Per-unit cost straight from the recipe: BOM quantities x each
+        // material's current average stock price, plus the recipe's flat
+        // Artisan Wages rates summed up. Recomputed on every packaging
+        // entry so it tracks material price and wage changes -- not a
+        // one-time snapshot.
+        const { unitCost } = await this.recipesService.computeUnitCost(recipe);
+
         if (!product) {
           // First time this SKU has been packaged -- create the Product row
-          // from the recipe instead of failing the entry. costPrice defaults
-          // to 0 since Recipe doesn't track a sale price; set the real value
-          // on the Products page afterward.
+          // from the recipe instead of failing the entry.
           product = manager.create(Product, {
             name: recipe.product,
             sku: recipe.sku,
-            costPrice: 0,
+            costPrice: unitCost,
             stock: 0,
           });
           product = await manager.save(product);
           console.log(
-            `[Packaging] No product existed for SKU ${recipe.sku} -- created "${recipe.product}" (set its cost price on the Products page).`,
+            `[Packaging] No product existed for SKU ${recipe.sku} -- created "${recipe.product}" at cost ৳${unitCost}/unit.`,
           );
+        } else {
+          product.costPrice = unitCost;
         }
 
         const artisanNames = employees.map((e) => e.name).join(', ');

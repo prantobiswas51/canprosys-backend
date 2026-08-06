@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { WoodStockBatch } from './wood-stock-batch.entity';
+import { WoodStage } from './wood-stage.entity';
 import { WoodTypesService } from './wood-types.service';
 import { round } from '../common/round';
 
@@ -28,6 +29,7 @@ export interface WoodStockSummaryRow {
 export class WoodStockService {
   constructor(
     @InjectRepository(WoodStockBatch) private batchRepository: Repository<WoodStockBatch>,
+    @InjectRepository(WoodStage) private woodStageRepository: Repository<WoodStage>,
     private woodTypesService: WoodTypesService,
   ) {}
 
@@ -62,6 +64,47 @@ export class WoodStockService {
       where: woodTypeId != null ? { woodTypeId } : {},
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // Called by MaterialConsumptionsService right after it draws down
+  // RawMaterial/MaterialBatch stock for some rawMaterialId. If that raw
+  // material happens to be the mirrored output of a wood-processing stage
+  // (e.g. Packaging consuming কোনা কাটা কাঠ), this draws the SAME quantity
+  // down from that stage's WoodStockBatch rows too -- oldest batch first --
+  // so the wood-processing stock view stays in sync with the general
+  // inventory instead of only ever growing. A no-op for any raw material
+  // that isn't wood-processing output (the common case).
+  async syncConsumptionFromRawMaterial(
+    rawMaterialId: number,
+    quantity: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (quantity <= 0) return;
+
+    const stageRepository = manager ? manager.getRepository(WoodStage) : this.woodStageRepository;
+    const stage = await stageRepository.findOneBy({ mirrorToRawMaterialId: rawMaterialId });
+    if (!stage) return;
+
+    const batchRepository = manager ? manager.getRepository(WoodStockBatch) : this.batchRepository;
+    const batches = await batchRepository.find({
+      where: { woodTypeId: stage.outputTypeId },
+      order: { batchDate: 'ASC', id: 'ASC' },
+    });
+
+    let remaining = quantity;
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      if (batch.quantityRemaining <= 0) continue;
+      const drawn = Math.min(batch.quantityRemaining, remaining);
+      batch.quantityRemaining = round(batch.quantityRemaining - drawn);
+      await batchRepository.save(batch);
+      remaining -= drawn;
+    }
+    // If remaining > 0 here, the wood-processing side simply doesn't have
+    // enough batch history to fully mirror this draw (e.g. stock that
+    // existed before this sync was added) -- RawMaterial/MaterialBatch is
+    // still the authoritative stock check, so this stays a best-effort
+    // sync rather than something that can block the consumption.
   }
 
   async getStockSummary(): Promise<WoodStockSummaryRow[]> {

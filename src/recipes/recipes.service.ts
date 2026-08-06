@@ -6,6 +6,14 @@ import { RecipeTaskRate } from './recipe-task-rate.entity';
 import { RecipeMaterialUsage } from './recipe-material-usage.entity';
 import { Task } from '../tasks/task.entity';
 import { RawMaterial } from '../raw-materials/raw-material.entity';
+import { MaterialBatchesService } from '../material-batches/material-batches.service';
+import { round } from '../common/round';
+
+export interface RecipeCostBreakdown {
+  materialCost: number;
+  laborCost: number;
+  unitCost: number;
+}
 
 export interface RecipeTaskRateInput {
   taskId: number;
@@ -37,6 +45,7 @@ export class RecipesService {
     private taskRepository: Repository<Task>,
     @InjectRepository(RawMaterial)
     private rawMaterialRepository: Repository<RawMaterial>,
+    private materialBatchesService: MaterialBatchesService,
   ) {}
 
   getRecipes() {
@@ -52,6 +61,37 @@ export class RecipesService {
       throw new NotFoundException(`Recipe #${id} not found`);
     }
     return recipe;
+  }
+
+  // Recipe.sku doubles as Product.sku (see daily-entry.service.ts), so this
+  // is how anything costing a finished product finds its recipe. Null, not
+  // a throw, if no recipe uses that SKU -- callers treat that as "can't
+  // price this one, fall back to whatever's already stored".
+  getRecipeBySku(sku: string) {
+    return this.recipeRepository.findOne({ where: { sku }, relations: RELATIONS });
+  }
+
+  // Cost to produce one unit of this recipe's output, straight from its
+  // setup: materialCost is each BOM line's quantity-per-unit times that
+  // material's current average stock price, laborCost is just the sum of
+  // its Artisan Wages rates (already flat per-unit figures, not tied to any
+  // one employee -- same philosophy as wood-processing wages). No actual
+  // consumption/payout records involved, so this reflects "what would the
+  // next unit cost right now", not what a specific past batch actually cost.
+  async computeUnitCost(recipe: Recipe): Promise<RecipeCostBreakdown> {
+    let materialCost = 0;
+    for (const usage of recipe.materialUsages ?? []) {
+      const unitPrice = await this.materialBatchesService.getAverageUnitPrice(usage.rawMaterialId);
+      materialCost += usage.quantity * unitPrice;
+    }
+    const laborCost = (recipe.taskRates ?? []).reduce((sum, tr) => sum + tr.rate, 0);
+    materialCost = round(materialCost);
+    const roundedLabor = round(laborCost);
+    return {
+      materialCost,
+      laborCost: roundedLabor,
+      unitCost: round(materialCost + roundedLabor),
+    };
   }
 
   async createRecipe(data: CreateRecipeInput) {
