@@ -40,16 +40,22 @@ export class WoodProcessingEntry {
   })
   employees!: Employee[];
 
-  // Weight taken AFTER processing -- this is what wages and the produced
-  // batch's quantity are both based on.
+  // Weight taken from the input stock BEFORE processing -- what's drawn
+  // from the input wood type's stock, and what wages are based on. This is
+  // the number the operator actually knows going in (e.g. "I took 10kg of
+  // raw wood to slice"), not something they'd have to compute themselves.
   @Column('float')
-  outputQuantity!: number;
+  consumedQuantity!: number;
 
-  // Whatever didn't survive processing as good output. consumed (drawn from
-  // the input stock) = outputQuantity + wasteQuantity. Zero is fine (no
+  // Whatever didn't survive processing as good output. Zero is fine (no
   // waste that run).
   @Column('float')
   wasteQuantity!: number;
+
+  // Derived: consumedQuantity - wasteQuantity. The good, useable output of
+  // this step -- what the produced batch's quantity is set to.
+  @Column('float')
+  outputQuantity!: number;
 
   // Snapshot of WoodStage.wageRatePerUnit at the moment this entry was
   // saved -- so a later rate change doesn't rewrite this entry's payout.

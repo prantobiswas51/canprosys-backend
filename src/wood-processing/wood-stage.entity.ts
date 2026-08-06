@@ -30,10 +30,11 @@ export class WoodStage {
   @Column()
   outputTypeId!: number;
 
-  // Paid per unit of OUTPUT (the good, post-processing quantity) -- not per
-  // unit consumed. Flat for every artisan; editable here at any time. Each
-  // entry snapshots the rate it actually used (see WoodProcessingEntry),
-  // so a later rate change never retroactively rewrites a past payout.
+  // Paid per unit of weight taken from the input stock BEFORE processing
+  // (good output + waste combined) -- not per unit of good output alone.
+  // Flat for every artisan; editable here at any time. Each entry snapshots
+  // the rate it actually used (see WoodProcessingEntry), so a later rate
+  // change never retroactively rewrites a past payout.
   @Column('float')
   wageRatePerUnit!: number;
 

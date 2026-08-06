@@ -15,9 +15,12 @@ import { round } from '../common/round';
 export interface CreateWoodProcessingEntryInput {
   stageId: number;
   employeeIds: number[];
-  // Weight taken AFTER this step -- wages and the new batch's quantity are
-  // both based on this number, not on how much was fed in.
-  outputQuantity: number;
+  // Weight taken from the input stock BEFORE processing -- e.g. "I took
+  // 10kg of raw wood to slice". This is what's drawn from stock and what
+  // wages are based on -- the number the operator actually knows going in.
+  consumedQuantity: number;
+  // Portion of consumedQuantity that didn't survive as good output.
+  // outputQuantity (the new batch's quantity) = consumedQuantity - wasteQuantity.
   wasteQuantity?: number;
   // Only needed if wasteQuantity > 0 and the stage has no defaultWasteType
   // configured -- overrides that default either way.
@@ -47,12 +50,17 @@ export class WoodProcessingService {
   }
 
   async createEntry(data: CreateWoodProcessingEntryInput) {
-    if (!data.outputQuantity || data.outputQuantity <= 0) {
-      throw new BadRequestException('Output quantity must be greater than zero');
+    if (!data.consumedQuantity || data.consumedQuantity <= 0) {
+      throw new BadRequestException('Quantity taken (before processing) must be greater than zero');
     }
     const wasteQuantity = data.wasteQuantity ?? 0;
     if (wasteQuantity < 0) {
       throw new BadRequestException('Waste quantity cannot be negative');
+    }
+    if (wasteQuantity >= data.consumedQuantity) {
+      throw new BadRequestException(
+        'Waste quantity must be less than the quantity taken -- there has to be some good output',
+      );
     }
     if (!data.employeeIds || data.employeeIds.length === 0) {
       throw new BadRequestException('At least one artisan is required');
@@ -79,10 +87,11 @@ export class WoodProcessingService {
       );
     }
 
-    // How much has to come OUT of the input stock -- the good output plus
-    // whatever became waste. Cost of that whole draw still ends up entirely
-    // on the good output below; waste itself carries no cost basis.
-    const consumedQuantity = data.outputQuantity + wasteQuantity;
+    // The good, useable output -- whatever was taken from stock minus
+    // whatever became waste. Cost of the whole draw still ends up entirely
+    // on this below; waste itself carries no cost basis.
+    const consumedQuantity = data.consumedQuantity;
+    const outputQuantity = round(consumedQuantity - wasteQuantity);
     const entryDate = data.entryDate || new Date().toISOString().slice(0, 10);
 
     return this.entryRepository.manager.transaction(async (manager) => {
@@ -90,8 +99,9 @@ export class WoodProcessingService {
         stageId: stage.id,
         stageName: stage.name,
         employees,
-        outputQuantity: data.outputQuantity,
+        consumedQuantity,
         wasteQuantity,
+        outputQuantity,
         wageRateUsed: stage.wageRatePerUnit,
         entryDate,
       });
@@ -108,17 +118,20 @@ export class WoodProcessingService {
         savedEntry.id,
       );
 
-      const laborCost = round(data.outputQuantity * stage.wageRatePerUnit);
+      // Wages are paid on the weight taken BEFORE processing (consumedQuantity
+      // = output + waste), not on the good output alone -- e.g. slicing 10kg
+      // down to 9kg good + 1kg waste still pays for 10kg of work.
+      const laborCost = round(consumedQuantity * stage.wageRatePerUnit);
       const totalCost = round(materialCost + laborCost);
-      const unitPrice = round(totalCost / data.outputQuantity);
+      const unitPrice = round(totalCost / outputQuantity);
 
       const outputBatchRepo = manager.getRepository(WoodStockBatch);
       const outputBatch = await outputBatchRepo.save(
         outputBatchRepo.create({
           woodTypeId: stage.outputTypeId,
           woodTypeName: stage.outputType.name,
-          quantity: data.outputQuantity,
-          quantityRemaining: data.outputQuantity,
+          quantity: outputQuantity,
+          quantityRemaining: outputQuantity,
           unitPrice,
           totalCost,
           sourceEntryId: savedEntry.id,
@@ -140,10 +153,10 @@ export class WoodProcessingService {
             rawMaterialId: rawMaterial.id,
             rawMaterialName: rawMaterial.name,
             rawMaterialUnit: rawMaterial.unit,
-            quantityPurchased: data.outputQuantity,
+            quantityPurchased: outputQuantity,
             unitPrice,
             totalCost,
-            quantityRemaining: data.outputQuantity,
+            quantityRemaining: outputQuantity,
             purchaseDate: entryDate,
           }),
         );
@@ -165,9 +178,9 @@ export class WoodProcessingService {
       // Wages -- same unified ledger as daily-entry payouts (Payout table
       // + Employee.balance), just with taskId left null and
       // woodProcessingEntryId set instead of dailyEntryId. Split equally
-      // across whoever's on the entry, based on OUTPUT quantity, per the
-      // agreed wage model.
-      const weightShare = round(data.outputQuantity / employees.length);
+      // across whoever's on the entry, based on consumedQuantity (weight
+      // taken before processing), matching laborCost above.
+      const weightShare = round(consumedQuantity / employees.length);
       const amount = round(weightShare * stage.wageRatePerUnit);
       const periodMonth = entryDate.slice(0, 7);
       const payoutRepo = manager.getRepository(Payout);

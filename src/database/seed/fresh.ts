@@ -38,7 +38,7 @@ import { seedTasks } from './task.seed';
 import { seedPermissions } from './permission.seed';
 import { seedRawMaterials } from './raw-material.seed';
 import { seedWasteTypes } from './waste-type.seed';
-import { seedWoodTypes, seedWoodStages } from './wood-processing.seed';
+import { seedWoodTypes } from './wood-processing.seed';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -102,8 +102,11 @@ async function fresh() {
   await seedRawMaterials(dataSource);
   await seedPermissions(dataSource);
   await seedWasteTypes(dataSource);
+  // Stages are NOT seeded -- they encode a specific pipeline (which input
+  // type feeds which output type, at what rate), and that's exactly the
+  // kind of thing this module was built to keep out of code. Set them up
+  // on the Wood Processing page's "Add Stage" form instead.
   await seedWoodTypes(dataSource);
-  await seedWoodStages(dataSource);
 
   await dataSource.destroy();
   console.log('Fresh + seeded.');

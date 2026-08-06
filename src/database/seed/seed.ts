@@ -15,7 +15,7 @@ import { seedTasks } from './task.seed';
 import { seedRawMaterials } from './raw-material.seed';
 import { seedPermissions } from './permission.seed';
 import { seedWasteTypes } from './waste-type.seed';
-import { seedWoodTypes, seedWoodStages } from './wood-processing.seed';
+import { seedWoodTypes } from './wood-processing.seed';
 
 // Was hardcoded to host/port/credentials that don't match .env (port 5432
 // vs the real 5433) -- now reads the same env vars app.module.ts uses, so
@@ -46,8 +46,11 @@ async function seed() {
   await seedRawMaterials(dataSource);
   await seedPermissions(dataSource);
   await seedWasteTypes(dataSource);
+  // Stages are NOT seeded -- they encode a specific pipeline (which input
+  // type feeds which output type, at what rate), and that's exactly the
+  // kind of thing this module was built to keep out of code. Set them up
+  // on the Wood Processing page's "Add Stage" form instead.
   await seedWoodTypes(dataSource);
-  await seedWoodStages(dataSource);
 
   await dataSource.destroy();
   console.log('Seed complete.');
