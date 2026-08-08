@@ -57,6 +57,13 @@ export class MaterialConsumption {
   @Column({ nullable: true })
   note?: string;
 
+  // Which daily entry (if any) triggered this consumption -- lets an edit or
+  // delete on that entry find and reverse exactly the consumption rows it
+  // caused, instead of guessing from the free-text note above. Null for
+  // consumptions recorded outside the daily-entry flow.
+  @Column({ nullable: true })
+  dailyEntryId?: number;
+
   @CreateDateColumn()
   consumedAt!: Date;
 }

@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { DailyEntry } from './daily-entry.entity';
 import { Task } from '../tasks/task.entity';
 import { Employee, EmployeeStatus } from '../employees/employee.entity';
 import { Recipe } from '../recipes/recipe.entity';
 import { Product } from '../products/product.entity';
+import { Payout } from '../payouts/payout.entity';
 import { PayoutsService } from '../payouts/payouts.service';
 import { MaterialConsumptionsService } from '../material-consumptions/material-consumptions.service';
 import { RecipesService } from '../recipes/recipes.service';
@@ -31,6 +32,8 @@ export interface CreateDailyEntryInput {
   recipeId?: number;
 }
 
+export type UpdateDailyEntryInput = CreateDailyEntryInput;
+
 @Injectable()
 export class DailyEntryService {
   constructor(
@@ -39,6 +42,7 @@ export class DailyEntryService {
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
     @InjectRepository(Recipe) private recipeRepo: Repository<Recipe>,
     @InjectRepository(Product) private productRepo: Repository<Product>,
+    @InjectRepository(Payout) private payoutRepo: Repository<Payout>,
     private payoutsService: PayoutsService,
     private materialConsumptionsService: MaterialConsumptionsService,
     private recipesService: RecipesService,
@@ -52,7 +56,96 @@ export class DailyEntryService {
   }
 
   async createEntry(data: CreateDailyEntryInput) {
-    const task = await this.taskRepo.findOneBy({ id: data.taskId });
+    // Everything from here on writes to the DB -- run it as one transaction
+    // so a failure partway through (entry save, stock update, or payout
+    // generation) can't leave a half-applied result committed.
+    return this.dailyEntryRepo.manager.transaction((manager) => this.applyEntry(data, manager));
+  }
+
+  // Edit = reverse everything the old entry caused (payouts, product stock,
+  // material/wood-stock consumption), delete the old row, then apply the
+  // new values exactly like a fresh create -- all inside one transaction.
+  // Simpler and far less error-prone than trying to diff old vs new values
+  // field by field and patch each side effect individually.
+  async updateEntry(id: number, data: UpdateDailyEntryInput) {
+    return this.dailyEntryRepo.manager.transaction(async (manager) => {
+      const entry = await manager.findOne(DailyEntry, {
+        where: { id },
+        relations: ['task', 'employees', 'recipe'],
+      });
+      if (!entry) {
+        throw new NotFoundException(`Daily entry #${id} not found`);
+      }
+
+      await this.reverseEntrySideEffects(entry, manager);
+      await manager.delete(DailyEntry, id);
+
+      return this.applyEntry(data, manager);
+    });
+  }
+
+  async deleteEntry(id: number) {
+    return this.dailyEntryRepo.manager.transaction(async (manager) => {
+      const entry = await manager.findOne(DailyEntry, {
+        where: { id },
+        relations: ['task', 'employees', 'recipe'],
+      });
+      if (!entry) {
+        throw new NotFoundException(`Daily entry #${id} not found`);
+      }
+
+      await this.reverseEntrySideEffects(entry, manager);
+      await manager.delete(DailyEntry, id);
+
+      return { deleted: true };
+    });
+  }
+
+  // Undoes everything createEntry (via applyEntry) does for a given entry:
+  // deletes its payout rows and debits the balance they credited, restores
+  // raw material / wood-stock consumption it drew down, and rolls back the
+  // finished-goods stock it added (Packaging only). Must run inside the same
+  // transaction as whatever's about to delete/replace the entry itself.
+  private async reverseEntrySideEffects(entry: DailyEntry, manager: EntityManager) {
+    const payoutRepository = manager.getRepository(Payout);
+    const employeeRepository = manager.getRepository(Employee);
+    const productRepository = manager.getRepository(Product);
+
+    const payouts = await payoutRepository.find({ where: { dailyEntryId: entry.id } });
+    for (const payout of payouts) {
+      await employeeRepository.decrement({ id: payout.employeeId }, 'balance', payout.amount);
+    }
+    if (payouts.length > 0) {
+      await payoutRepository.remove(payouts);
+    }
+
+    await this.materialConsumptionsService.deleteConsumptionsForDailyEntry(entry.id, manager);
+
+    if (entry.task?.slug === PACKAGING_SLUG) {
+      // Prefer the live recipe's SKU; fall back to matching on the snapshot
+      // product name if the recipe itself has since been deleted.
+      const sku = entry.recipe?.sku;
+      const product = sku
+        ? await productRepository.findOneBy({ sku })
+        : entry.productName
+          ? await productRepository.findOneBy({ name: entry.productName })
+          : null;
+      if (product) {
+        product.stock = round(Math.max(0, product.stock - entry.weightKg));
+        await productRepository.save(product);
+      }
+    }
+  }
+
+  // Shared by createEntry and updateEntry -- validates input, then does all
+  // the actual writes (entry row, material consumption, product stock,
+  // payouts) against whatever manager the caller's transaction is using.
+  private async applyEntry(data: CreateDailyEntryInput, manager: EntityManager) {
+    const taskRepo = manager.getRepository(Task);
+    const recipeRepo = manager.getRepository(Recipe);
+    const employeeRepo = manager.getRepository(Employee);
+
+    const task = await taskRepo.findOneBy({ id: data.taskId });
     if (!task) {
       throw new NotFoundException('Task not found');
     }
@@ -72,7 +165,7 @@ export class DailyEntryService {
       // when this task is Packaging -- see bomConsumptions below).
       // taskRates needed alongside materialUsages now, too -- both feed the
       // per-unit cost computed below when this is a Packaging entry.
-      recipe = await this.recipeRepo.findOne({
+      recipe = await recipeRepo.findOne({
         where: { id: data.recipeId },
         relations: ['materialUsages', 'taskRates'],
       });
@@ -81,7 +174,7 @@ export class DailyEntryService {
       }
     }
 
-    const employees = await this.employeeRepo.find({ where: { id: In(data.employeeIds) } });
+    const employees = await employeeRepo.find({ where: { id: In(data.employeeIds) } });
     if (employees.length === 0) {
       throw new BadRequestException('No matching employees found');
     }
@@ -117,7 +210,7 @@ export class DailyEntryService {
     // already points at a specific RawMaterial by id (set on the Recipes
     // page), so there's no name/unit guessing left to do here, just
     // multiply by weightKg. The actual FIFO deduction across batches
-    // happens inside the transaction below.
+    // happens below.
     const bomConsumptions: ResolvedBomConsumption[] =
       recipe && task.slug === PACKAGING_SLUG
         ? recipe.materialUsages
@@ -129,86 +222,84 @@ export class DailyEntryService {
             .filter((c) => c.quantity > 0)
         : [];
 
-    // Everything from here on writes to the DB -- run it as one transaction
-    // so a failure partway through (entry save, stock update, or payout
-    // generation) can't leave a half-applied result committed.
-    return this.dailyEntryRepo.manager.transaction(async (manager) => {
-      const entry = manager.create(DailyEntry, {
-        task,
-        taskId: task.id,
-        employees,
-        weightKg: data.weightKg,
-        recipeId: recipe?.id,
-        productName: recipe?.product,
-      });
-      const saved = await manager.save(entry);
-
-      // Re-fetch with relations so the response the frontend gets back
-      // (used to prepend to the list) has task/employees populated -- also
-      // needed here since generatePayoutsForEntry reads entry.task/employees.
-      const savedWithRelations = await manager.findOne(DailyEntry, {
-        where: { id: saved.id },
-        relations: ['task', 'employees', 'recipe'],
-      });
-
-      // FIFO across material_batch rows per material -- oldest batch with
-      // stock left is drawn from first, spilling into the next batch if it
-      // isn't enough. Throws (rolling back this whole transaction, entry
-      // included) if any one of them doesn't have enough stock to cover it.
-      // Empty (and thus a no-op) for every task except Packaging.
-      for (const consumption of bomConsumptions) {
-        await this.materialConsumptionsService.recordConsumption(
-          {
-            rawMaterialId: consumption.rawMaterialId,
-            quantity: consumption.quantity,
-            note: `Daily entry #${saved.id}: ${task.name} - ${recipe?.product} (SKU: ${recipe?.sku}) -- ${consumption.rawMaterialName}`,
-          },
-          manager,
-        );
-      }
-
-      if (task.slug === PACKAGING_SLUG && recipe?.sku) {
-        let product = await manager.findOneBy(Product, { sku: recipe.sku });
-
-        // Per-unit cost straight from the recipe: BOM quantities x each
-        // material's current average stock price, plus the recipe's flat
-        // Artisan Wages rates summed up. Recomputed on every packaging
-        // entry so it tracks material price and wage changes -- not a
-        // one-time snapshot.
-        const { unitCost } = await this.recipesService.computeUnitCost(recipe);
-
-        if (!product) {
-          // First time this SKU has been packaged -- create the Product row
-          // from the recipe instead of failing the entry.
-          product = manager.create(Product, {
-            name: recipe.product,
-            sku: recipe.sku,
-            costPrice: unitCost,
-            stock: 0,
-          });
-          product = await manager.save(product);
-          console.log(
-            `[Packaging] No product existed for SKU ${recipe.sku} -- created "${recipe.product}" at cost ৳${unitCost}/unit.`,
-          );
-        } else {
-          product.costPrice = unitCost;
-        }
-
-        const artisanNames = employees.map((e) => e.name).join(', ');
-        console.log(
-          `[Packaging] SKU ${product.sku} (${recipe.product}): +${data.weightKg} units by ${artisanNames} -- stock ${product.stock} -> ${product.stock + data.weightKg}`,
-        );
-        product.stock = round(product.stock + data.weightKg);
-        await manager.save(product);
-      }
-
-      if (savedWithRelations) {
-        // Compute + save payouts right away instead of waiting for a manual
-        // "Generate Payouts" run -- one row per artisan on this entry.
-        await this.payoutsService.generatePayoutsForEntry(savedWithRelations, manager);
-      }
-
-      return savedWithRelations;
+    const entry = manager.create(DailyEntry, {
+      task,
+      taskId: task.id,
+      employees,
+      weightKg: data.weightKg,
+      recipeId: recipe?.id,
+      productName: recipe?.product,
     });
+    const saved = await manager.save(entry);
+
+    // Re-fetch with relations so the response the frontend gets back (used
+    // to prepend to the list, or replace the edited row) has task/employees
+    // populated -- also needed here since generatePayoutsForEntry reads
+    // entry.task/employees.
+    const savedWithRelations = await manager.findOne(DailyEntry, {
+      where: { id: saved.id },
+      relations: ['task', 'employees', 'recipe'],
+    });
+
+    // FIFO across material_batch rows per material -- oldest batch with
+    // stock left is drawn from first, spilling into the next batch if it
+    // isn't enough. Throws (rolling back this whole transaction, entry
+    // included) if any one of them doesn't have enough stock to cover it.
+    // Empty (and thus a no-op) for every task except Packaging.
+    for (const consumption of bomConsumptions) {
+      await this.materialConsumptionsService.recordConsumption(
+        {
+          rawMaterialId: consumption.rawMaterialId,
+          quantity: consumption.quantity,
+          note: `Daily entry #${saved.id}: ${task.name} - ${recipe?.product} (SKU: ${recipe?.sku}) -- ${consumption.rawMaterialName}`,
+          dailyEntryId: saved.id,
+        },
+        manager,
+      );
+    }
+
+    if (task.slug === PACKAGING_SLUG && recipe?.sku) {
+      const productRepo = manager.getRepository(Product);
+      let product = await productRepo.findOneBy({ sku: recipe.sku });
+
+      // Per-unit cost straight from the recipe: BOM quantities x each
+      // material's current average stock price, plus the recipe's flat
+      // Artisan Wages rates summed up. Recomputed on every packaging
+      // entry so it tracks material price and wage changes -- not a
+      // one-time snapshot.
+      const { unitCost } = await this.recipesService.computeUnitCost(recipe);
+
+      if (!product) {
+        // First time this SKU has been packaged -- create the Product row
+        // from the recipe instead of failing the entry.
+        product = manager.create(Product, {
+          name: recipe.product,
+          sku: recipe.sku,
+          costPrice: unitCost,
+          stock: 0,
+        });
+        product = await manager.save(product);
+        console.log(
+          `[Packaging] No product existed for SKU ${recipe.sku} -- created "${recipe.product}" at cost ৳${unitCost}/unit.`,
+        );
+      } else {
+        product.costPrice = unitCost;
+      }
+
+      const artisanNames = employees.map((e) => e.name).join(', ');
+      console.log(
+        `[Packaging] SKU ${product.sku} (${recipe.product}): +${data.weightKg} units by ${artisanNames} -- stock ${product.stock} -> ${product.stock + data.weightKg}`,
+      );
+      product.stock = round(product.stock + data.weightKg);
+      await manager.save(product);
+    }
+
+    if (savedWithRelations) {
+      // Compute + save payouts right away instead of waiting for a manual
+      // "Generate Payouts" run -- one row per artisan on this entry.
+      await this.payoutsService.generatePayoutsForEntry(savedWithRelations, manager);
+    }
+
+    return savedWithRelations;
   }
 }

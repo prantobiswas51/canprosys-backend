@@ -107,6 +107,44 @@ export class WoodStockService {
     // sync rather than something that can block the consumption.
   }
 
+  // Reverse of syncConsumptionFromRawMaterial -- called when a consumption
+  // that previously drew down wood-processing stock is undone (a daily
+  // entry being edited or deleted). Restores the same quantity back into
+  // that stage's WoodStockBatch rows, oldest-batch-first, capped so no
+  // batch goes back above its original purchased/produced quantity. A no-op
+  // for any raw material that isn't wood-processing output.
+  async restoreConsumptionToRawMaterial(
+    rawMaterialId: number,
+    quantity: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (quantity <= 0) return;
+
+    const stageRepository = manager ? manager.getRepository(WoodStage) : this.woodStageRepository;
+    const stage = await stageRepository.findOneBy({ mirrorToRawMaterialId: rawMaterialId });
+    if (!stage) return;
+
+    const batchRepository = manager ? manager.getRepository(WoodStockBatch) : this.batchRepository;
+    const batches = await batchRepository.find({
+      where: { woodTypeId: stage.outputTypeId },
+      order: { batchDate: 'ASC', id: 'ASC' },
+    });
+
+    let remaining = quantity;
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      const room = batch.quantity - batch.quantityRemaining;
+      if (room <= 0) continue;
+      const restored = Math.min(room, remaining);
+      batch.quantityRemaining = round(batch.quantityRemaining + restored);
+      await batchRepository.save(batch);
+      remaining -= restored;
+    }
+    // Same best-effort caveat as the forward sync: if remaining > 0 here,
+    // there isn't enough "room" across existing batches to take the full
+    // restore -- RawMaterial/MaterialBatch stays authoritative either way.
+  }
+
   async getStockSummary(): Promise<WoodStockSummaryRow[]> {
     const woodTypes = await this.woodTypesService.getWoodTypes();
     const batches = await this.batchRepository.find({ where: {} });

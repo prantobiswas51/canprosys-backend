@@ -1,7 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, QueryFailedError, Repository } from 'typeorm';
-import { Employee, EmployeeStatus } from './employee.entity';
+import { Employee, EmployeeStatus, NidStatus } from './employee.entity';
 
 export interface CreateEmployeeInput {
   name: string;
@@ -63,6 +63,33 @@ export class EmployeesService {
     const employee = await this.getEmployeeById(id);
     await this.employeeRepository.remove(employee);
     return { deleted: true };
+  }
+
+  // Saves whichever NID image path(s) were just uploaded (front, back, or
+  // both -- the controller only passes what multer actually received).
+  // Every upload resets status back to pending, even a re-upload replacing
+  // an already-approved image -- an approval was given against specific
+  // pictures, so new ones need a fresh look rather than inheriting it.
+  async uploadNidImages(id: number, images: { nidFrontImage?: string; nidBackImage?: string }) {
+    const employee = await this.getEmployeeById(id);
+    if (images.nidFrontImage) employee.nidFrontImage = images.nidFrontImage;
+    if (images.nidBackImage) employee.nidBackImage = images.nidBackImage;
+    employee.nidStatus = NidStatus.PENDING;
+    return this.saveEmployee(employee);
+  }
+
+  async setNidStatus(id: number, status: NidStatus) {
+    if (status !== NidStatus.APPROVED && status !== NidStatus.REJECTED) {
+      throw new BadRequestException('Status must be "approved" or "rejected"');
+    }
+    const employee = await this.getEmployeeById(id);
+    if (!employee.nidFrontImage && !employee.nidBackImage) {
+      throw new BadRequestException(
+        'Upload at least one NID image before it can be approved or rejected.',
+      );
+    }
+    employee.nidStatus = status;
+    return this.saveEmployee(employee);
   }
 
   // Postgres unique-violation (phone already registered to another

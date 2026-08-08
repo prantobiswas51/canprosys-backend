@@ -11,6 +11,7 @@ export interface RecordConsumptionInput {
   rawMaterialId: number;
   quantity: number;
   note?: string;
+  dailyEntryId?: number;
 }
 
 @Injectable()
@@ -98,6 +99,7 @@ export class MaterialConsumptionsService {
         unitCost: batch.unitPrice,
         totalCost: round(drawn * batch.unitPrice),
         note: data.note,
+        dailyEntryId: data.dailyEntryId,
       });
       created.push(await consumptionRepository.save(consumption));
 
@@ -118,21 +120,53 @@ export class MaterialConsumptionsService {
   }
 
   // Reverses a consumption row: restores its quantity back to the batch it
-  // was drawn from (if that batch still exists) before deleting the record.
-  async deleteConsumption(id: number) {
-    const consumption = await this.getConsumptionById(id);
+  // was drawn from (if that batch still exists), mirrors that restore back
+  // into wood-processing stock if applicable, then deletes the record.
+  // Accepts an optional transaction `manager` for the same reason
+  // recordConsumption does -- so an entry edit/delete's reversal commits or
+  // rolls back atomically with everything else it's undoing.
+  async deleteConsumption(id: number, manager?: EntityManager) {
+    const batchRepository = manager ? manager.getRepository(MaterialBatch) : this.batchRepository;
+    const consumptionRepository = manager
+      ? manager.getRepository(MaterialConsumption)
+      : this.consumptionRepository;
+
+    const consumption = await consumptionRepository.findOneBy({ id });
+    if (!consumption) {
+      throw new NotFoundException(`Material consumption #${id} not found`);
+    }
 
     if (consumption.materialBatchId != null) {
-      const batch = await this.batchRepository.findOneBy({
+      const batch = await batchRepository.findOneBy({
         id: consumption.materialBatchId,
       });
       if (batch) {
         batch.quantityRemaining = round(batch.quantityRemaining + consumption.quantity);
-        await this.batchRepository.save(batch);
+        await batchRepository.save(batch);
       }
     }
 
-    await this.consumptionRepository.remove(consumption);
+    await this.woodStockService.restoreConsumptionToRawMaterial(
+      consumption.rawMaterialId,
+      consumption.quantity,
+      manager,
+    );
+
+    await consumptionRepository.remove(consumption);
     return { deleted: true };
+  }
+
+  // Reverses every consumption row tied to a given daily entry -- used when
+  // that entry is edited or deleted, so the raw material (and mirrored wood
+  // stock) draw it caused gets fully undone before either re-applying new
+  // values or removing the entry outright.
+  async deleteConsumptionsForDailyEntry(dailyEntryId: number, manager?: EntityManager) {
+    const consumptionRepository = manager
+      ? manager.getRepository(MaterialConsumption)
+      : this.consumptionRepository;
+    const rows = await consumptionRepository.find({ where: { dailyEntryId } });
+    for (const row of rows) {
+      await this.deleteConsumption(row.id, manager);
+    }
   }
 }

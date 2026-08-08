@@ -30,6 +30,14 @@ export class MaterialBatchesController {
     );
   }
 
+  // One row per raw material with quantity remaining, average unit price,
+  // and stock value -- must come before ':id' or "stock-summary" would be
+  // parsed as an id.
+  @Get('stock-summary')
+  getStockSummary() {
+    return this.batchesService.getStockSummary();
+  }
+
   @Get(':id')
   getBatchById(@Param('id', ParseIntPipe) id: number) {
     return this.batchesService.getBatchById(id);

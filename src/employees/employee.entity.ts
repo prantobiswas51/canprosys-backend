@@ -14,6 +14,12 @@ export enum EmployeeStatus {
   INACTIVE = 'inactive',
 }
 
+export enum NidStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 @Entity()
 export class Employee {
   @PrimaryGeneratedColumn()
@@ -45,6 +51,22 @@ export class Employee {
   // Employees page; it's a running total, not a manual entry field.
   @Column('float', { default: 0 })
   balance!: number;
+
+  // Relative URL path (e.g. "/uploads/nid/emp-3-front-....jpg") -- served
+  // statically by main.ts's useStaticAssets, not the raw file on disk.
+  // Nullable since NID verification is opt-in per employee, not required
+  // to create one.
+  @Column({ nullable: true })
+  nidFrontImage?: string;
+
+  @Column({ nullable: true })
+  nidBackImage?: string;
+
+  // Every new employee starts unverified; a fresh upload also resets this
+  // back to pending (see EmployeesService.uploadNidImages) so an approval
+  // never silently carries over to different pictures.
+  @Column({ type: 'enum', enum: NidStatus, default: NidStatus.PENDING })
+  nidStatus!: NidStatus;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'managerId' })

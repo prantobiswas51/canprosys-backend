@@ -32,6 +32,8 @@ import { WoodProcessingEntry } from '../../wood-processing/wood-processing-entry
 import { WasteType } from '../../waste-management/waste-type.entity';
 import { WasteBatch } from '../../waste-management/waste-batch.entity';
 import { WasteSale } from '../../waste-management/waste-sale.entity';
+import { MaintenanceCategory } from '../../maintenance-costs/maintenance-category.entity';
+import { MaintenanceCost } from '../../maintenance-costs/maintenance-cost.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -81,6 +83,8 @@ const dataSource = new DataSource({
     WasteType,
     WasteBatch,
     WasteSale,
+    MaintenanceCategory,
+    MaintenanceCost,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',

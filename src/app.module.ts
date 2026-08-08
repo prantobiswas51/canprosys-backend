@@ -21,6 +21,7 @@ import { ShipmentsModule } from './shipments/shipments.module';
 import { RoutesModule } from './routes/routes.module';
 import { WoodProcessingModule } from './wood-processing/wood-processing.module';
 import { WasteManagementModule } from './waste-management/waste-management.module';
+import { MaintenanceCostsModule } from './maintenance-costs/maintenance-costs.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { WasteManagementModule } from './waste-management/waste-management.modul
     RoutesModule,
     WoodProcessingModule,
     WasteManagementModule,
+    MaintenanceCostsModule,
   ],
 })
 export class AppModule {}
