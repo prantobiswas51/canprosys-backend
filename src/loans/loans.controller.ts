@@ -14,8 +14,20 @@ export class LoansController {
   }
 
   @Get()
-  getAll(@Query('month') month?: string, @Query('employeeId') employeeId?: string) {
-    return this.loansService.getLoans(month, employeeId ? Number(employeeId) : undefined);
+  getAll(
+    @Query('month') month?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('employeeName') employeeName?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.loansService.getLoans({
+      month,
+      employeeId: employeeId ? Number(employeeId) : undefined,
+      employeeName,
+      from,
+      to,
+    });
   }
 
   @Delete(':id')

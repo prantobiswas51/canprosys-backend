@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { Loan } from './loan.entity';
 import { Employee } from '../employees/employee.entity';
 
@@ -9,6 +9,18 @@ export interface CreateLoanInput {
   amount: number;
   givenDate?: string; // YYYY-MM-DD, defaults to today
   note?: string;
+}
+
+export interface GetLoansFilter {
+  month?: string;
+  employeeId?: number;
+  // Case-insensitive partial match on the employeeName snapshot -- lets the
+  // frontend filter by typed name without needing to resolve an id first.
+  employeeName?: string;
+  // Date range on givenDate (both YYYY-MM-DD, inclusive). Takes priority
+  // over month when both are somehow present.
+  from?: string;
+  to?: string;
 }
 
 @Injectable()
@@ -51,10 +63,16 @@ export class LoansService {
     });
   }
 
-  getLoans(month?: string, employeeId?: number) {
-    const where: { periodMonth?: string; employeeId?: number } = {};
-    if (month) where.periodMonth = month;
-    if (employeeId != null) where.employeeId = employeeId;
+  getLoans(filter: GetLoansFilter = {}) {
+    const where: FindOptionsWhere<Loan> = {};
+    if (filter.employeeId != null) where.employeeId = filter.employeeId;
+    if (filter.employeeName) where.employeeName = ILike(`%${filter.employeeName}%`);
+
+    if (filter.from && filter.to) {
+      where.givenDate = Between(filter.from, filter.to);
+    } else if (filter.month) {
+      where.periodMonth = filter.month;
+    }
 
     return this.loanRepository.find({
       where,
