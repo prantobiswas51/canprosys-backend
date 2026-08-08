@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, EntityManager, Repository } from 'typeorm';
+import { Between, EntityManager, ILike, Repository } from 'typeorm';
 import { Payout } from './payout.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 import { Employee } from '../employees/employee.entity';
@@ -183,5 +183,54 @@ export class PayoutsService {
     }
 
     return Array.from(map.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }
+
+  // Name/phone lookup + full earnings picture for one employee -- what the
+  // AI assistant's "salary" tool uses, since it only ever has a rough name
+  // to go on, not an id. currentBalanceOwed is the running accrued-but-not-
+  // yet-paid-out total (Employee.balance); lifetimeEarnings/recentPayouts
+  // give the history behind that number. Returns null if nothing matches,
+  // rather than throwing -- callers show "no such employee" instead of a
+  // 404 that'd derail a chat reply.
+  async getEmployeeEarnings(employeeQuery: string, month?: string) {
+    const trimmed = employeeQuery.trim();
+    if (!trimmed) return null;
+
+    const employee = await this.employeeRepository.findOne({
+      where: [{ name: ILike(`%${trimmed}%`) }, { phone: ILike(`%${trimmed}%`) }],
+    });
+    if (!employee) return null;
+
+    const allPayouts = await this.payoutRepository.find({
+      where: { employeeId: employee.id },
+      order: { createdAt: 'DESC' },
+    });
+    const lifetimeEarnings = round(allPayouts.reduce((sum, p) => sum + p.amount, 0));
+
+    let monthSummary: { month: string; totalPayout: number; entryCount: number } | undefined;
+    if (month) {
+      const monthPayouts = allPayouts.filter((p) => p.periodMonth === month);
+      monthSummary = {
+        month,
+        totalPayout: round(monthPayouts.reduce((sum, p) => sum + p.amount, 0)),
+        entryCount: monthPayouts.length,
+      };
+    }
+
+    return {
+      employeeId: employee.id,
+      employeeName: employee.name,
+      status: employee.status,
+      currentBalanceOwed: employee.balance,
+      lifetimeEarnings,
+      monthSummary,
+      recentPayouts: allPayouts.slice(0, 10).map((p) => ({
+        taskName: p.taskName,
+        weightShare: p.weightShare,
+        ratePerUnit: p.ratePerUnit,
+        amount: p.amount,
+        periodMonth: p.periodMonth,
+      })),
+    };
   }
 }

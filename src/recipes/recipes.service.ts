@@ -71,6 +71,21 @@ export class RecipesService {
     return this.recipeRepository.findOne({ where: { sku }, relations: RELATIONS });
   }
 
+  // Case-insensitive partial match on product name OR sku -- how the AI
+  // assistant (and anything else that only has a rough name, not an exact
+  // SKU) finds the right recipe. "canvas" matches "Canvas 3x4", sku "3x4wb"
+  // matches itself.
+  async searchRecipes(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) return this.getRecipes();
+    return this.recipeRepository
+      .createQueryBuilder('recipe')
+      .leftJoinAndSelect('recipe.taskRates', 'taskRates')
+      .leftJoinAndSelect('recipe.materialUsages', 'materialUsages')
+      .where('recipe.product ILIKE :q OR recipe.sku ILIKE :q', { q: `%${trimmed}%` })
+      .getMany();
+  }
+
   // Cost to produce one unit of this recipe's output, straight from its
   // setup: materialCost is each BOM line's quantity-per-unit times that
   // material's current average stock price, laborCost is just the sum of

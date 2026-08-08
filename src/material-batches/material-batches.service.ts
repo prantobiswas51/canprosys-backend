@@ -14,6 +14,15 @@ export interface CreateMaterialBatchInput {
 
 export type UpdateMaterialBatchInput = Partial<CreateMaterialBatchInput>;
 
+export interface RawMaterialStockRow {
+  rawMaterialId: number;
+  rawMaterialName: string;
+  unit: string;
+  quantityRemaining: number;
+  averageUnitPrice: number;
+  stockValue: number;
+}
+
 @Injectable()
 export class MaterialBatchesService {
   constructor(
@@ -129,5 +138,31 @@ export class MaterialBatchesService {
       return dateDiff !== 0 ? dateDiff : b.id - a.id;
     })[0];
     return latest.unitPrice;
+  }
+
+  // Live stock across all raw materials -- one row per RawMaterial (even
+  // ones with zero batches, so an empty material still shows up as "0 in
+  // stock" instead of silently disappearing), same shape/approach as
+  // WoodStockService.getStockSummary. Used by the Inventory page and by the
+  // AI assistant's raw-material-stock tool.
+  async getStockSummary(): Promise<RawMaterialStockRow[]> {
+    const rawMaterials = await this.rawMaterialsService.getRawMaterials();
+    const batches = await this.batchRepository.find({ where: {} });
+
+    return rawMaterials.map((rawMaterial) => {
+      const relevant = batches.filter(
+        (b) => b.rawMaterialId === rawMaterial.id && b.quantityRemaining > 0,
+      );
+      const quantityRemaining = round(relevant.reduce((sum, b) => sum + b.quantityRemaining, 0));
+      const stockValue = round(relevant.reduce((sum, b) => sum + b.quantityRemaining * b.unitPrice, 0));
+      return {
+        rawMaterialId: rawMaterial.id,
+        rawMaterialName: rawMaterial.name,
+        unit: rawMaterial.unit,
+        quantityRemaining,
+        averageUnitPrice: quantityRemaining > 0 ? round(stockValue / quantityRemaining) : 0,
+        stockValue,
+      };
+    });
   }
 }
