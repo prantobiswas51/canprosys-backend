@@ -12,9 +12,12 @@ export class Product {
     @Column()
     sku!: string;
 
-    @Column()
+    // Explicit 'float' -- without it TypeORM infers plain `number` design
+    // types as Postgres `integer`, which throws on any decimal value (e.g.
+    // a recipe's live-computed cost like 49.999).
+    @Column('float')
     costPrice!: number;
 
-    @Column()
+    @Column('float')
     stock!: number;
 }
