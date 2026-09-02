@@ -20,7 +20,7 @@ export class UsersController {
     return this.usersService.deleteUser(Number(id));
   }
 
-
+// who knows
   // Disabled: open user creation via this endpoint. Uncomment to re-enable.
   // @Post()
   // createUser(@Body() body: { name: string; email: string; username?: string; password?: string }) {
