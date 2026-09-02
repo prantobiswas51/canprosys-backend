@@ -54,6 +54,13 @@ export class MaterialBatch {
   @Column({ type: 'date', nullable: true })
   purchaseDate?: string;
 
+  // Set only when this batch was auto-created by a wood-processing entry's
+  // final-stage output mirroring into RawMaterial/MaterialBatch (see
+  // WoodProcessingService) -- lets that entry's edit/delete find and reverse
+  // exactly this batch. Null for a batch entered directly on this page.
+  @Column({ nullable: true })
+  sourceWoodProcessingEntryId?: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

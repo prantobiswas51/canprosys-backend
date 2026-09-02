@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { WoodStockService } from './wood-stock.service';
-import type { PurchaseWoodInput } from './wood-stock.service';
+import type { PurchaseWoodInput, UpdateWoodPurchaseInput } from './wood-stock.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -21,5 +21,17 @@ export class WoodStockController {
   @Get('summary')
   getSummary() {
     return this.woodStockService.getStockSummary();
+  }
+
+  // Purchased batches only -- a processing-entry-produced batch is edited
+  // by editing that entry (see WoodProcessingController), not here.
+  @Patch('batches/:id')
+  updatePurchaseBatch(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateWoodPurchaseInput) {
+    return this.woodStockService.updatePurchaseBatch(id, body);
+  }
+
+  @Delete('batches/:id')
+  deletePurchaseBatch(@Param('id', ParseIntPipe) id: number) {
+    return this.woodStockService.deletePurchaseBatch(id);
   }
 }

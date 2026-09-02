@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MaterialBatch } from './material-batch.entity';
@@ -111,6 +111,15 @@ export class MaterialBatchesService {
 
   async deleteBatch(id: number) {
     const batch = await this.getBatchById(id);
+    // Same "near-immutable once touched" rule as updateBatch above --
+    // deleting a batch that's already been partially/fully consumed would
+    // silently erase the purchase history those consumption rows still
+    // point back to, without actually restoring anything anywhere.
+    if (batch.quantityRemaining !== batch.quantityPurchased) {
+      throw new ConflictException(
+        `Cannot delete this batch -- ${round(batch.quantityPurchased - batch.quantityRemaining)} ${batch.rawMaterialUnit ?? ''} has already been consumed from it.`,
+      );
+    }
     await this.batchRepository.remove(batch);
     return { deleted: true };
   }

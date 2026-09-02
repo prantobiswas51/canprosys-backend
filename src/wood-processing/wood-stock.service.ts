@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { WoodStockBatch } from './wood-stock-batch.entity';
@@ -12,6 +12,12 @@ export interface PurchaseWoodInput {
   unitPrice: number;
   batchDate?: string;
   note?: string;
+}
+
+export interface UpdateWoodPurchaseInput {
+  quantity?: number;
+  unitPrice?: number;
+  batchDate?: string;
 }
 
 export interface WoodStockSummaryRow {
@@ -64,6 +70,73 @@ export class WoodStockService {
       where: woodTypeId != null ? { woodTypeId } : {},
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async getBatchById(id: number) {
+    const batch = await this.batchRepository.findOneBy({ id });
+    if (!batch) {
+      throw new NotFoundException(`Wood stock batch #${id} not found`);
+    }
+    return batch;
+  }
+
+  // Purchased batches only (sourceEntryId null) -- a batch produced by a
+  // processing entry is edited/deleted by editing/deleting that entry
+  // instead (see WoodProcessingService.reverseEntry), so its output batch,
+  // mirrored raw material, waste, and payouts all stay consistent together.
+  // Same "near-immutable once touched" rule as MaterialBatchesService.
+  async updatePurchaseBatch(id: number, data: UpdateWoodPurchaseInput) {
+    const batch = await this.getBatchById(id);
+    if (batch.sourceEntryId != null) {
+      throw new ConflictException(
+        'This batch came from a processing entry -- edit that entry instead of this batch directly.',
+      );
+    }
+
+    if (data.quantity != null) {
+      if (data.quantity <= 0) {
+        throw new BadRequestException('Quantity must be greater than zero');
+      }
+      const alreadyConsumed = batch.quantity - batch.quantityRemaining;
+      if (data.quantity < alreadyConsumed) {
+        throw new BadRequestException(
+          `Cannot reduce quantity below what's already been consumed (${round(alreadyConsumed)})`,
+        );
+      }
+      batch.quantityRemaining = round(data.quantity - alreadyConsumed);
+      batch.quantity = data.quantity;
+    }
+
+    if (data.unitPrice != null) {
+      if (data.unitPrice < 0) {
+        throw new BadRequestException('Unit price cannot be negative');
+      }
+      batch.unitPrice = data.unitPrice;
+    }
+
+    batch.totalCost = round(batch.quantity * batch.unitPrice);
+
+    if (data.batchDate != null) {
+      batch.batchDate = data.batchDate;
+    }
+
+    return this.batchRepository.save(batch);
+  }
+
+  async deletePurchaseBatch(id: number) {
+    const batch = await this.getBatchById(id);
+    if (batch.sourceEntryId != null) {
+      throw new ConflictException(
+        'This batch came from a processing entry -- delete that entry instead of this batch directly.',
+      );
+    }
+    if (batch.quantityRemaining !== batch.quantity) {
+      throw new ConflictException(
+        `Cannot delete this batch -- ${round(batch.quantity - batch.quantityRemaining)} has already been consumed from it.`,
+      );
+    }
+    await this.batchRepository.remove(batch);
+    return { deleted: true };
   }
 
   // Called by MaterialConsumptionsService right after it draws down

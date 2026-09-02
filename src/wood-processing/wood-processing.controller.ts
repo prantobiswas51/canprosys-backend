@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { WoodProcessingService } from './wood-processing.service';
-import type { CreateWoodProcessingEntryInput } from './wood-processing.service';
+import type { CreateWoodProcessingEntryInput, UpdateWoodProcessingEntryInput } from './wood-processing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -16,5 +16,15 @@ export class WoodProcessingController {
   @Post()
   createEntry(@Body() body: CreateWoodProcessingEntryInput) {
     return this.woodProcessingService.createEntry(body);
+  }
+
+  @Patch(':id')
+  updateEntry(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateWoodProcessingEntryInput) {
+    return this.woodProcessingService.updateEntry(id, body);
+  }
+
+  @Delete(':id')
+  deleteEntry(@Param('id', ParseIntPipe) id: number) {
+    return this.woodProcessingService.deleteEntry(id);
   }
 }
