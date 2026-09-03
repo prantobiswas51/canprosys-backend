@@ -9,10 +9,17 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.use(cookieParser());
+  // Every 500 (and every 5xx HttpException) now gets a full stack trace +
+  // request context logged server-side, with a requestId shared between the
+  // log line and the client response -- see the filter's own comment for
+  // why this exists. Without it, unhandled errors were only ever visible by
+  // grep-diving raw pm2 logs after the fact.
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
     origin: 'http://localhost:5173',
     credentials: true,
