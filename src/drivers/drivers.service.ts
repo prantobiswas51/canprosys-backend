@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Driver, DriverStatus } from './driver.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface CreateDriverInput {
   name: string;
@@ -47,7 +49,7 @@ export class DriversService {
     try {
       await this.driverRepository.remove(driver);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${driver.name}" -- they're referenced by an existing shipment. Remove that first.`,
         );
@@ -64,7 +66,7 @@ export class DriversService {
     try {
       return await this.driverRepository.save(driver);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(
           `License number "${driver.licenseNumber}" is already in use by another driver.`,
         );
@@ -73,17 +75,5 @@ export class DriversService {
     }
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }

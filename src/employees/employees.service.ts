@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, QueryFailedError, Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { Employee, EmployeeStatus, NidStatus } from './employee.entity';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface CreateEmployeeInput {
   name: string;
@@ -100,7 +101,7 @@ export class EmployeesService {
     try {
       return await this.employeeRepository.save(employee);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(
           `Phone number "${employee.phone}" is already in use by another employee.`,
         );
@@ -109,10 +110,4 @@ export class EmployeesService {
     }
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 }

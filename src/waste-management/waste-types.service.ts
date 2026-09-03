@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { WasteType } from './waste-type.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface CreateWasteTypeInput {
   name: string;
@@ -30,7 +32,7 @@ export class WasteTypesService {
     try {
       return await this.wasteTypeRepository.save(wasteType);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(`A waste type named "${data.name}" already exists`);
       }
       throw err;
@@ -42,7 +44,7 @@ export class WasteTypesService {
     try {
       await this.wasteTypeRepository.remove(wasteType);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${wasteType.name}" -- it has waste batches or sales recorded against it.`,
         );
@@ -52,17 +54,5 @@ export class WasteTypesService {
     return { deleted: true };
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }

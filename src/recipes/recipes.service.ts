@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, QueryFailedError, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { Recipe } from './recipe.entity';
 import { RecipeTaskRate } from './recipe-task-rate.entity';
 import { RecipeMaterialUsage } from './recipe-material-usage.entity';
@@ -8,6 +8,7 @@ import { Task } from '../tasks/task.entity';
 import { RawMaterial } from '../raw-materials/raw-material.entity';
 import { MaterialBatchesService } from '../material-batches/material-batches.service';
 import { round } from '../common/round';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface RecipeCostBreakdown {
   materialCost: number;
@@ -243,17 +244,11 @@ export class RecipesService {
     try {
       return await manager.save(recipe);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(`SKU "${recipe.sku}" is already in use by another recipe.`);
       }
       throw err;
     }
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 }

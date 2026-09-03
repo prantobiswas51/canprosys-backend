@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Task } from './task.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
 
 export interface CreateTaskInput {
     name: string;
@@ -62,7 +63,7 @@ export class TasksService {
         try {
             await this.taskRepository.remove(task);
         } catch (err) {
-            if (this.isForeignKeyViolation(err)) {
+            if (isForeignKeyViolation(err)) {
                 throw new ConflictException(
                     `Cannot delete "${task.name}" -- it's referenced by existing daily entries or used in a recipe's Artisan Wages. Remove those references first.`,
                 );
@@ -91,12 +92,5 @@ export class TasksService {
             suffix += 1;
         }
         return slug;
-    }
-
-    private isForeignKeyViolation(err: unknown): boolean {
-        return (
-            err instanceof QueryFailedError &&
-            (err as QueryFailedError & { code?: string }).code === '23503'
-        );
     }
 }

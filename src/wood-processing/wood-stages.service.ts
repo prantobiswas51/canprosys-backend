@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { WoodStage } from './wood-stage.entity';
 import { WoodTypesService } from './wood-types.service';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
 import { WasteTypesService } from '../waste-management/waste-types.service';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
 
 export interface CreateWoodStageInput {
   name: string;
@@ -120,7 +121,7 @@ export class WoodStagesService {
     try {
       await this.woodStageRepository.remove(stage);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${stage.name}" -- it has processing entries logged against it. Those records need to stay traceable to their stage.`,
         );
@@ -130,10 +131,4 @@ export class WoodStagesService {
     return { deleted: true };
   }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }

@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Route } from './route.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
 
 export interface CreateRouteInput {
   origin: string;
@@ -47,7 +48,7 @@ export class RoutesService {
     try {
       await this.routeRepository.remove(route);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${route.origin} -> ${route.destination}" -- it's referenced by an existing shipment. Remove that first.`,
         );
@@ -57,10 +58,4 @@ export class RoutesService {
     return { deleted: true };
   }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }

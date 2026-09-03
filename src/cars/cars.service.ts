@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Car, CarStatus } from './car.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface CreateCarInput {
   plateNumber: string;
@@ -47,7 +49,7 @@ export class CarsService {
     try {
       await this.carRepository.remove(car);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${car.plateNumber}" -- it's referenced by an existing shipment. Remove that first.`,
         );
@@ -64,24 +66,12 @@ export class CarsService {
     try {
       return await this.carRepository.save(car);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(`Plate number "${car.plateNumber}" is already in use by another car.`);
       }
       throw err;
     }
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }

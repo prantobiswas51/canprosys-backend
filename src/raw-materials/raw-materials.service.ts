@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { RawMaterial } from './raw-material.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
 
 export interface CreateRawMaterialInput {
   name: string;
@@ -46,7 +47,7 @@ export class RawMaterialsService {
     try {
       await this.rawMaterialRepository.remove(rawMaterial);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${rawMaterial.name}" -- it's used in a recipe's Materials (BOM). Remove it from those recipes first.`,
         );
@@ -56,12 +57,6 @@ export class RawMaterialsService {
     return { deleted: true };
   }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 
   // Derived from the name ("Poly Bag" -> "poly_bag"), same pattern as
   // Task's slug -- de-dupes against existing slugs so two materials never

@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { WoodType } from './wood-type.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface CreateWoodTypeInput {
   name: string;
@@ -31,7 +33,7 @@ export class WoodTypesService {
     try {
       return await this.woodTypeRepository.save(woodType);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(`A wood type named "${data.name}" already exists`);
       }
       throw err;
@@ -43,7 +45,7 @@ export class WoodTypesService {
     try {
       await this.woodTypeRepository.remove(woodType);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${woodType.name}" -- it's used by a wood stage or has stock batches. Remove those first.`,
         );
@@ -53,17 +55,5 @@ export class WoodTypesService {
     return { deleted: true };
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }

@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { MaintenanceCategory } from './maintenance-category.entity';
+import { isForeignKeyViolation } from '../common/is-foreign-key-violation';
+import { isUniqueViolation } from '../common/is-unique-violation';
 
 export interface CreateMaintenanceCategoryInput {
   name: string;
@@ -35,7 +37,7 @@ export class MaintenanceCategoriesService {
     try {
       return await this.categoryRepository.save(category);
     } catch (err) {
-      if (this.isUniqueViolation(err)) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(`Category "${data.name}" already exists.`);
       }
       throw err;
@@ -47,7 +49,7 @@ export class MaintenanceCategoriesService {
     try {
       await this.categoryRepository.remove(category);
     } catch (err) {
-      if (this.isForeignKeyViolation(err)) {
+      if (isForeignKeyViolation(err)) {
         throw new ConflictException(
           `Cannot delete "${category.name}" -- it has cost entries logged against it.`,
         );
@@ -57,17 +59,5 @@ export class MaintenanceCategoriesService {
     return { deleted: true };
   }
 
-  private isUniqueViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23505'
-    );
-  }
 
-  private isForeignKeyViolation(err: unknown): boolean {
-    return (
-      err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code === '23503'
-    );
-  }
 }
