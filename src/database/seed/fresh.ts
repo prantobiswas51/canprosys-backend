@@ -34,6 +34,8 @@ import { WasteBatch } from '../../waste-management/waste-batch.entity';
 import { WasteSale } from '../../waste-management/waste-sale.entity';
 import { MaintenanceCategory } from '../../maintenance-costs/maintenance-category.entity';
 import { MaintenanceCost } from '../../maintenance-costs/maintenance-cost.entity';
+import { GoogleDriveConnection } from '../../settings/google-drive-connection.entity';
+import { BackupLog } from '../../settings/backup-log.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -85,6 +87,8 @@ const dataSource = new DataSource({
     WasteSale,
     MaintenanceCategory,
     MaintenanceCost,
+    GoogleDriveConnection,
+    BackupLog,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',

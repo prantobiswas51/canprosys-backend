@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { EmployeesModule } from './employees/employees.module';
@@ -22,9 +23,11 @@ import { RoutesModule } from './routes/routes.module';
 import { WoodProcessingModule } from './wood-processing/wood-processing.module';
 import { WasteManagementModule } from './waste-management/waste-management.module';
 import { MaintenanceCostsModule } from './maintenance-costs/maintenance-costs.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DATABASE_HOST || 'localhost',
@@ -65,6 +68,7 @@ import { MaintenanceCostsModule } from './maintenance-costs/maintenance-costs.mo
     WoodProcessingModule,
     WasteManagementModule,
     MaintenanceCostsModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}
