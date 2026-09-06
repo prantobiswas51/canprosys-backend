@@ -52,6 +52,23 @@ export class DailyEntry {
   @Column({ nullable: true })
   productName?: string;
 
+  // Snapshot of what this entry actually did to the stage ledger at the
+  // time it was created -- stored explicitly rather than re-derived from
+  // the recipe's *current* sequence/task config, since that can change
+  // later (a stage added, reordered, etc.) and reversal must undo exactly
+  // what this entry did, not whatever the recipe's pipeline looks like now.
+  // All null/false for entries created before per-stage tracking existed;
+  // reverseEntrySideEffects falls back to the old Packaging-slug check for
+  // those (see DailyEntryService).
+  @Column({ nullable: true })
+  consumedFromTaskId?: number;
+
+  @Column({ nullable: true })
+  creditedStageTaskId?: number;
+
+  @Column({ default: false })
+  creditedProductStock!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

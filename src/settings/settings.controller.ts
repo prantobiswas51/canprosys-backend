@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Param, ParseIntPipe, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GoogleDriveService } from './google-drive.service';
@@ -68,5 +68,20 @@ export class SettingsController {
   @Get('backups')
   async getBackupHistory() {
     return this.backupService.getHistory();
+  }
+
+  // Plain <a href> download from the frontend, not axios -- streams the
+  // exact file archived on Drive back through our backend, so the admin
+  // doesn't need their own separate Drive access to grab a copy.
+  @Get('backups/:id/download')
+  async downloadBackup(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const log = await this.backupService.getById(id);
+    if (!log?.driveFileId) {
+      throw new NotFoundException('No downloadable file for this backup.');
+    }
+    const stream = await this.googleDriveService.downloadFileStream(log.driveFileId);
+    res.setHeader('Content-Disposition', `attachment; filename="${log.fileName ?? 'backup.dump'}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    stream.pipe(res);
   }
 }

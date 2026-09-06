@@ -92,4 +92,8 @@ export class BackupService {
       take: limit,
     });
   }
+
+  async getById(id: number): Promise<BackupLog | null> {
+    return this.backupLogRepository.findOneBy({ id });
+  }
 }

@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { RecipesService } from './recipes.service';
@@ -21,6 +22,13 @@ export class RecipesController {
   @Get()
   getRecipes() {
     return this.recipesService.getRecipes();
+  }
+
+  // Declared before ':id' -- otherwise Express would try to match this
+  // literal path as an ':id' param first and ParseIntPipe would reject it.
+  @Get('stage-stock')
+  getStageStocks(@Query('recipeId') recipeId?: string) {
+    return this.recipesService.getStageStocks(recipeId ? Number(recipeId) : undefined);
   }
 
   @Get(':id')

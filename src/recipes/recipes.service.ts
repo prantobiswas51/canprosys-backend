@@ -4,6 +4,7 @@ import { EntityManager, In, Repository } from 'typeorm';
 import { Recipe } from './recipe.entity';
 import { RecipeTaskRate } from './recipe-task-rate.entity';
 import { RecipeMaterialUsage } from './recipe-material-usage.entity';
+import { RecipeStageStock } from './recipe-stage-stock.entity';
 import { Task } from '../tasks/task.entity';
 import { RawMaterial } from '../raw-materials/raw-material.entity';
 import { MaterialBatchesService } from '../material-batches/material-batches.service';
@@ -19,11 +20,13 @@ export interface RecipeCostBreakdown {
 export interface RecipeTaskRateInput {
   taskId: number;
   rate: number;
+  sequence?: number | null;
 }
 
 export interface RecipeMaterialUsageInput {
   rawMaterialId: number;
   quantity: number;
+  taskId?: number | null;
 }
 
 export interface CreateRecipeInput {
@@ -46,8 +49,22 @@ export class RecipesService {
     private taskRepository: Repository<Task>,
     @InjectRepository(RawMaterial)
     private rawMaterialRepository: Repository<RawMaterial>,
+    @InjectRepository(RecipeStageStock)
+    private recipeStageStockRepository: Repository<RecipeStageStock>,
     private materialBatchesService: MaterialBatchesService,
   ) {}
+
+  // Current WIP sitting after each stage, across every recipe (or just one,
+  // via recipeId) -- purely a read of whatever DailyEntryService has
+  // written here. Zero-quantity rows are kept (not deleted) so "this stage
+  // exists but currently has nothing sitting in it" is still visible,
+  // rather than looking identical to "this stage was never used".
+  getStageStocks(recipeId?: number) {
+    return this.recipeStageStockRepository.find({
+      where: recipeId != null ? { recipeId } : {},
+      order: { recipeId: 'ASC', taskId: 'ASC' },
+    });
+  }
 
   getRecipes() {
     return this.recipeRepository.find({ relations: RELATIONS });
@@ -117,6 +134,7 @@ export class RecipesService {
     // has to actually exist.
     await this.assertTasksExist(taskRates);
     await this.assertRawMaterialsExist(materialUsages);
+    await this.assertMaterialUsageTasksExist(materialUsages);
 
     return this.recipeRepository.manager.transaction(async (manager) => {
       const recipe = manager.create(Recipe, recipeFields);
@@ -136,6 +154,7 @@ export class RecipesService {
     }
     if (materialUsages) {
       await this.assertRawMaterialsExist(materialUsages);
+      await this.assertMaterialUsageTasksExist(materialUsages);
     }
 
     Object.assign(recipe, recipeFields);
@@ -164,13 +183,28 @@ export class RecipesService {
 
   private async assertTasksExist(taskRates?: RecipeTaskRateInput[]) {
     if (!taskRates || taskRates.length === 0) return;
-    const taskIds = taskRates.map((t) => t.taskId);
+    await this.assertTaskIdsExist(taskRates.map((t) => t.taskId));
+  }
+
+  // Same check, generalized -- also used to validate the (optional) taskId
+  // on each Materials (BOM) row now that a BOM entry can be tagged to a
+  // specific pipeline stage instead of always applying at Packaging.
+  private async assertTaskIdsExist(taskIds: number[]) {
+    if (taskIds.length === 0) return;
     const found = await this.taskRepository.findBy({ id: In(taskIds) });
     if (found.length !== new Set(taskIds).size) {
       const foundIds = new Set(found.map((t) => t.id));
       const missing = taskIds.filter((id) => !foundIds.has(id));
       throw new BadRequestException(`Task(s) not found: ${missing.join(', ')}`);
     }
+  }
+
+  private async assertMaterialUsageTasksExist(materialUsages?: RecipeMaterialUsageInput[]) {
+    if (!materialUsages || materialUsages.length === 0) return;
+    const taskIds = materialUsages
+      .map((m) => m.taskId)
+      .filter((id): id is number => id != null);
+    await this.assertTaskIdsExist(taskIds);
   }
 
   private async assertRawMaterialsExist(materialUsages?: RecipeMaterialUsageInput[]) {
@@ -203,6 +237,7 @@ export class RecipesService {
         taskId: task.id,
         taskName: task.name,
         rate: tr.rate,
+        sequence: tr.sequence ?? undefined,
       });
       await manager.save(row);
     }
@@ -222,15 +257,22 @@ export class RecipesService {
     });
     const rawMaterialById = new Map(rawMaterials.map((m) => [m.id, m]));
 
+    const taskIds = materialUsages.map((m) => m.taskId).filter((id): id is number => id != null);
+    const tasks = taskIds.length > 0 ? await manager.findBy(Task, { id: In(taskIds) }) : [];
+    const taskById = new Map(tasks.map((t) => [t.id, t]));
+
     for (const mu of materialUsages) {
       const rawMaterial = rawMaterialById.get(mu.rawMaterialId);
       if (!rawMaterial) continue; // already validated in assertRawMaterialsExist; defensive only
+      const task = mu.taskId != null ? taskById.get(mu.taskId) : undefined;
       const row = manager.create(RecipeMaterialUsage, {
         recipeId,
         rawMaterialId: rawMaterial.id,
         rawMaterialName: rawMaterial.name,
         rawMaterialUnit: rawMaterial.unit,
         quantity: mu.quantity,
+        taskId: task?.id,
+        taskName: task?.name,
       });
       await manager.save(row);
     }

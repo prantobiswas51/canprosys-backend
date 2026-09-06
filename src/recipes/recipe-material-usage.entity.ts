@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Recipe } from './recipe.entity';
 import { RawMaterial } from '../raw-materials/raw-material.entity';
+import { Task } from '../tasks/task.entity';
 
 // Pivot table: which raw materials a recipe's BOM uses, and how much of
 // each is needed per unit produced -- replaces the old hardcoded
@@ -51,4 +52,26 @@ export class RecipeMaterialUsage {
   // FIFO from material_batch.
   @Column('float')
   quantity!: number;
+
+  // Which stage of the recipe's pipeline consumes this material -- e.g.
+  // "Corner Cut Wood, 0.4kg" tagged to Frame Making, "Poly, 1 piece" tagged
+  // to Packaging. Null means "not yet assigned to a stage" -- see
+  // DailyEntryService's migration guard, which refuses to log entries
+  // against a recipe until every material usage (and every task rate) has
+  // this set. No onDelete cascade for the same reason as RecipeTaskRate.task:
+  // deleting a task that's still wired into a recipe's BOM should fail
+  // loudly, not silently orphan the row.
+  @ManyToOne(() => Task, { nullable: true })
+  @JoinColumn({ name: 'taskId' })
+  task?: Task;
+
+  @Column({ nullable: true })
+  taskId?: number;
+
+  // Snapshot of Task.name at the time this row was set, same reasoning as
+  // RecipeTaskRate.taskName -- avoids an extra relation load just to show
+  // "consumed at: Frame Making" in the UI, and doesn't retroactively
+  // relabel history if the task is later renamed.
+  @Column({ nullable: true })
+  taskName?: string;
 }

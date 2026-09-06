@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import type { Readable } from 'stream';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -172,6 +173,21 @@ export class GoogleDriveService {
       throw new Error('Google Drive did not return an id for the uploaded backup');
     }
     return { fileId: res.data.id, webViewLink: res.data.webViewLink ?? undefined };
+  }
+
+  // Streams a previously-uploaded backup straight back from Drive, so an
+  // admin can download the exact file that was archived without needing
+  // their own separate access to the Drive account -- the browser downloads
+  // it through our backend instead.
+  async downloadFileStream(fileId: string): Promise<Readable> {
+    const connection = await this.connectionRepository.findOneBy({});
+    if (!connection) {
+      throw new BadRequestException('Google Drive is not connected.');
+    }
+    const client = await this.getAuthorizedClient(connection);
+    const drive = google.drive({ version: 'v3', auth: client });
+    const res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+    return res.data as unknown as Readable;
   }
 
   // Deletes backup files older than keepDays from the Drive folder --

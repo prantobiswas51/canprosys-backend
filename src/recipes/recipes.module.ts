@@ -5,13 +5,14 @@ import { RecipesService } from './recipes.service';
 import { Recipe } from './recipe.entity';
 import { RecipeTaskRate } from './recipe-task-rate.entity';
 import { RecipeMaterialUsage } from './recipe-material-usage.entity';
+import { RecipeStageStock } from './recipe-stage-stock.entity';
 import { Task } from '../tasks/task.entity';
 import { RawMaterial } from '../raw-materials/raw-material.entity';
 import { MaterialBatchesModule } from '../material-batches/material-batches.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Recipe, RecipeTaskRate, RecipeMaterialUsage, Task, RawMaterial]),
+    TypeOrmModule.forFeature([Recipe, RecipeTaskRate, RecipeMaterialUsage, RecipeStageStock, Task, RawMaterial]),
     MaterialBatchesModule,
   ],
   controllers: [RecipesController],

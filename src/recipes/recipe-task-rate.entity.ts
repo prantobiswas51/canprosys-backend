@@ -41,4 +41,14 @@ export class RecipeTaskRate {
 
   @Column('float')
   rate!: number;
+
+  // Where this task sits in the recipe's production pipeline (1 = first
+  // step, 2 = next, etc.) -- e.g. Framing=1, Cloth Stretching=2, Gesso
+  // Coat=3, Sticker=4, Packaging=5. Optional and unenforced: nothing stops
+  // two rows sharing a number or a recipe leaving it unset entirely, since
+  // not every recipe cares about ordering. It exists purely so the "how
+  // many units are sitting at each step" view can sort/group by it later --
+  // no consumption or stock logic depends on this column.
+  @Column({ type: 'int', nullable: true })
+  sequence?: number;
 }
