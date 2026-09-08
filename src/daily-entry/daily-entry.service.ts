@@ -165,6 +165,33 @@ export class DailyEntryService {
     };
   }
 
+  // Entry point for both stage-tracked and single-step recipes -- branches
+  // on the recipe's category (see RecipeCategory.hasSteps). A category with
+  // hasSteps=false (or no category at all -- treated as the simpler case
+  // rather than forcing every recipe to be assigned one) skips Step-number
+  // validation and per-stage ordering entirely: any of its configured tasks
+  // directly finishes a unit, exactly like Daily Entry worked before the
+  // multi-stage WIP ledger existed. hasSteps=true (the default) keeps
+  // today's behavior unchanged.
+  private resolveStagePositionForEntry(recipe: Recipe, task: Task): StagePosition {
+    if (recipe.category && recipe.category.hasSteps === false) {
+      const stageRates = recipe.taskRates ?? [];
+      if (stageRates.length === 0) {
+        throw new BadRequestException(
+          `Recipe "${recipe.product}" has no tasks configured -- add its production task(s) on the Recipes page first.`,
+        );
+      }
+      if (!stageRates.some((tr) => tr.taskId === task.id)) {
+        throw new BadRequestException(
+          `Task "${task.name}" isn't one of recipe "${recipe.product}"'s configured tasks.`,
+        );
+      }
+      return { isFirstStage: true, isLastStage: true, previousTask: undefined };
+    }
+    const stageRates = this.assertRecipeIsStageTracked(recipe);
+    return this.resolveStagePosition(recipe, stageRates, task);
+  }
+
   // Undoes everything createEntry (via applyEntry) does for a given entry:
   // deletes its payout rows and debits the balance they credited, restores
   // raw material / wood-stock consumption it drew down, restores whatever
@@ -260,17 +287,14 @@ export class DailyEntryService {
       }
       recipe = await recipeRepo.findOne({
         where: { id: data.recipeId },
-        relations: ['materialUsages', 'taskRates'],
+        relations: ['materialUsages', 'taskRates', 'category'],
       });
       if (!recipe) {
         throw new NotFoundException('Recipe not found');
       }
-      // Fail fast, before writing anything -- every task in this recipe's
-      // wage list needs a Step number so "what stage is this, what comes
-      // before it" is unambiguous. See the method's own comment for why
-      // this is required rather than best-effort.
-      const stageRates = this.assertRecipeIsStageTracked(recipe);
-      stagePosition = this.resolveStagePosition(recipe, stageRates, task);
+      // Fail fast, before writing anything -- see resolveStagePositionForEntry
+      // for how this branches on the recipe's category.
+      stagePosition = this.resolveStagePositionForEntry(recipe, task);
     }
 
     const employees = await employeeRepo.find({ where: { id: In(data.employeeIds) } });

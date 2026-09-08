@@ -12,6 +12,7 @@ export interface RecordConsumptionInput {
   quantity: number;
   note?: string;
   dailyEntryId?: number;
+  materialMixId?: number;
 }
 
 @Injectable()
@@ -100,6 +101,7 @@ export class MaterialConsumptionsService {
         totalCost: round(drawn * batch.unitPrice),
         note: data.note,
         dailyEntryId: data.dailyEntryId,
+        materialMixId: data.materialMixId,
       });
       created.push(await consumptionRepository.save(consumption));
 
@@ -165,6 +167,18 @@ export class MaterialConsumptionsService {
       ? manager.getRepository(MaterialConsumption)
       : this.consumptionRepository;
     const rows = await consumptionRepository.find({ where: { dailyEntryId } });
+    for (const row of rows) {
+      await this.deleteConsumption(row.id, manager);
+    }
+  }
+
+  // Same as deleteConsumptionsForDailyEntry, for a material mix being
+  // reversed instead of a daily entry.
+  async deleteConsumptionsForMaterialMix(materialMixId: number, manager?: EntityManager) {
+    const consumptionRepository = manager
+      ? manager.getRepository(MaterialConsumption)
+      : this.consumptionRepository;
+    const rows = await consumptionRepository.find({ where: { materialMixId } });
     for (const row of rows) {
       await this.deleteConsumption(row.id, manager);
     }

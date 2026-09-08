@@ -31,5 +31,9 @@ export const nidMulterOptions = {
     }
     cb(null, true);
   },
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per image
+  // Originals can come in much larger than the 1MB we actually want to keep
+  // -- compressNidImageIfNeeded() (see nid-image-compress.ts) shrinks
+  // anything over that limit after upload, so this ceiling just guards
+  // against genuinely absurd files (not phone photos), not the normal case.
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB per image, hard ceiling only
 };

@@ -44,12 +44,11 @@ export class BackupLog {
   @Column('text', { nullable: true })
   errorMessage?: string;
 
-  // The uploads/ directory (NID images, etc.) isn't in Postgres at all, so
-  // it can't ride along inside the .dump -- archived separately as its own
-  // file in the same Drive folder. All nullable: a run where uploads/
-  // doesn't exist yet (fresh install) or the archive step itself fails
-  // shouldn't be treated as the whole backup having failed, since the DB
-  // dump above is the part that actually matters most.
+  // A second artifact alongside the DB dump: a tarball of the uploads/
+  // directory (NID images, etc.) -- these live on disk, not in Postgres, so
+  // pg_dump alone would silently miss them. Best-effort: a failure here
+  // doesn't flip `status` to failed, since the primary DB backup already
+  // succeeded -- see uploadsErrorMessage for what went wrong, if anything.
   @Column({ nullable: true })
   uploadsFileName?: string;
 
@@ -61,4 +60,7 @@ export class BackupLog {
 
   @Column({ nullable: true })
   uploadsDriveWebViewLink?: string;
+
+  @Column('text', { nullable: true })
+  uploadsErrorMessage?: string;
 }

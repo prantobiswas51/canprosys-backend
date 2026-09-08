@@ -21,6 +21,8 @@ import type {
 } from './employees.service';
 import { NidStatus } from './employee.entity';
 import { nidMulterOptions } from './nid-upload.config';
+import { compressNidImageIfNeeded } from './nid-image-compress';
+import { basename } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 // Matches what diskStorage in nid-upload.config.ts actually writes back --
@@ -28,6 +30,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 // shape (no @types/multer installed, so there's nothing to import for that).
 interface UploadedDiskFile {
   filename: string;
+  path: string;
 }
 
 // Was fully unauthenticated before -- anyone who knew the URL could read,
@@ -80,17 +83,25 @@ export class EmployeesController {
       nidMulterOptions,
     ),
   )
-  uploadNid(
+  async uploadNid(
     @Param('id', ParseIntPipe) id: number,
     @UploadedFiles()
     files: { nidFront?: UploadedDiskFile[]; nidBack?: UploadedDiskFile[] },
   ) {
-    const nidFrontImage = files.nidFront?.[0] ? `/uploads/nid/${files.nidFront[0].filename}` : undefined;
-    const nidBackImage = files.nidBack?.[0] ? `/uploads/nid/${files.nidBack[0].filename}` : undefined;
-
-    if (!nidFrontImage && !nidBackImage) {
+    if (!files.nidFront?.[0] && !files.nidBack?.[0]) {
       throw new BadRequestException('Attach at least one image (front or back).');
     }
+
+    // Shrink anything over 1MB before it's ever referenced from the DB --
+    // see nid-image-compress.ts. This can rename the file on disk (always
+    // ends up .jpg once re-encoded), so the URL we persist has to reflect
+    // whatever filename actually survived, not the one multer first wrote.
+    const nidFrontImage = files.nidFront?.[0]
+      ? `/uploads/nid/${basename(await compressNidImageIfNeeded(files.nidFront[0].path))}`
+      : undefined;
+    const nidBackImage = files.nidBack?.[0]
+      ? `/uploads/nid/${basename(await compressNidImageIfNeeded(files.nidBack[0].path))}`
+      : undefined;
 
     return this.employeesService.uploadNidImages(id, { nidFrontImage, nidBackImage });
   }

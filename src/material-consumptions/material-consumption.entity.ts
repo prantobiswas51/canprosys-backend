@@ -64,6 +64,13 @@ export class MaterialConsumption {
   @Column({ nullable: true })
   dailyEntryId?: number;
 
+  // Same idea as dailyEntryId above, for the other flow that draws down raw
+  // materials outside a recipe: mixing two materials into a third (see
+  // MaterialMixesService). Lets deleting a mix find and reverse exactly the
+  // consumption rows it caused.
+  @Column({ nullable: true })
+  materialMixId?: number;
+
   @CreateDateColumn()
   consumedAt!: Date;
 }

@@ -13,6 +13,7 @@ import { ProductsModule } from './products/products.module';
 import { RawMaterialsModule } from './raw-materials/raw-materials.module';
 import { MaterialBatchesModule } from './material-batches/material-batches.module';
 import { MaterialConsumptionsModule } from './material-consumptions/material-consumptions.module';
+import { MaterialMixesModule } from './material-mixes/material-mixes.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { AiModule } from './ai/ai.module';
 import { LoansModule } from './loans/loans.module';
@@ -58,6 +59,7 @@ import { SettingsModule } from './settings/settings.module';
     RawMaterialsModule,
     MaterialBatchesModule,
     MaterialConsumptionsModule,
+    MaterialMixesModule,
     PayoutsModule,
     AiModule,
     LoansModule,

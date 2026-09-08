@@ -5,6 +5,7 @@ import { Recipe } from './recipe.entity';
 import { RecipeTaskRate } from './recipe-task-rate.entity';
 import { RecipeMaterialUsage } from './recipe-material-usage.entity';
 import { RecipeStageStock } from './recipe-stage-stock.entity';
+import { RecipeCategory } from './recipe-category.entity';
 import { Task } from '../tasks/task.entity';
 import { RawMaterial } from '../raw-materials/raw-material.entity';
 import { MaterialBatchesService } from '../material-batches/material-batches.service';
@@ -32,13 +33,14 @@ export interface RecipeMaterialUsageInput {
 export interface CreateRecipeInput {
   product: string;
   sku: string;
+  categoryId?: number | null;
   taskRates: RecipeTaskRateInput[];
   materialUsages: RecipeMaterialUsageInput[];
 }
 
 export type UpdateRecipeInput = Partial<CreateRecipeInput>;
 
-const RELATIONS = ['taskRates', 'materialUsages'];
+const RELATIONS = ['taskRates', 'materialUsages', 'category'];
 
 @Injectable()
 export class RecipesService {
@@ -51,6 +53,8 @@ export class RecipesService {
     private rawMaterialRepository: Repository<RawMaterial>,
     @InjectRepository(RecipeStageStock)
     private recipeStageStockRepository: Repository<RecipeStageStock>,
+    @InjectRepository(RecipeCategory)
+    private recipeCategoryRepository: Repository<RecipeCategory>,
     private materialBatchesService: MaterialBatchesService,
   ) {}
 
@@ -135,6 +139,7 @@ export class RecipesService {
     await this.assertTasksExist(taskRates);
     await this.assertRawMaterialsExist(materialUsages);
     await this.assertMaterialUsageTasksExist(materialUsages);
+    await this.assertCategoryExists(data.categoryId);
 
     return this.recipeRepository.manager.transaction(async (manager) => {
       const recipe = manager.create(Recipe, recipeFields);
@@ -155,6 +160,9 @@ export class RecipesService {
     if (materialUsages) {
       await this.assertRawMaterialsExist(materialUsages);
       await this.assertMaterialUsageTasksExist(materialUsages);
+    }
+    if ('categoryId' in data) {
+      await this.assertCategoryExists(data.categoryId);
     }
 
     Object.assign(recipe, recipeFields);
@@ -205,6 +213,16 @@ export class RecipesService {
       .map((m) => m.taskId)
       .filter((id): id is number => id != null);
     await this.assertTaskIdsExist(taskIds);
+  }
+
+  // categoryId is optional -- null/undefined just means "no category set",
+  // not an error. Only checked when an actual id is given.
+  private async assertCategoryExists(categoryId?: number | null) {
+    if (categoryId == null) return;
+    const found = await this.recipeCategoryRepository.findOneBy({ id: categoryId });
+    if (!found) {
+      throw new BadRequestException(`Category #${categoryId} not found`);
+    }
   }
 
   private async assertRawMaterialsExist(materialUsages?: RecipeMaterialUsageInput[]) {

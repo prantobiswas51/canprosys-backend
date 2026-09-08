@@ -84,4 +84,20 @@ export class SettingsController {
     res.setHeader('Content-Type', 'application/octet-stream');
     stream.pipe(res);
   }
+
+  // Same idea, for the separate uploads/ (NID images etc.) archive that
+  // rides alongside the DB dump for the same backup run -- not every log
+  // row has one (uploads/ may not have existed yet at that point), hence
+  // the same "no downloadable file" 404 rather than assuming it's there.
+  @Get('backups/:id/download-uploads')
+  async downloadUploadsArchive(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const log = await this.backupService.getById(id);
+    if (!log?.uploadsDriveFileId) {
+      throw new NotFoundException('No uploads archive for this backup.');
+    }
+    const stream = await this.googleDriveService.downloadFileStream(log.uploadsDriveFileId);
+    res.setHeader('Content-Disposition', `attachment; filename="${log.uploadsFileName ?? 'uploads.tar.gz'}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    stream.pipe(res);
+  }
 }

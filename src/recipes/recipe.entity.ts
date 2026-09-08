@@ -1,6 +1,7 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { RecipeTaskRate } from "./recipe-task-rate.entity";
 import { RecipeMaterialUsage } from "./recipe-material-usage.entity";
+import { RecipeCategory } from "./recipe-category.entity";
 
 
 @Entity()
@@ -14,6 +15,20 @@ export class Recipe{
 
     @Column({ unique: true })
     sku!:string;  //e.g. 3x4wb
+
+    // Which product grouping this recipe belongs to (Canvas, Easel, ...) --
+    // admin-managed via RecipeCategoriesService/its own CRUD, not a hardcoded
+    // enum, so new categories can be added later without a code change.
+    // Nullable so existing recipes created before this field existed don't
+    // need a backfill. No onDelete cascade -- deleting a category still
+    // assigned to a recipe should fail loudly (see
+    // RecipeCategoriesService.deleteCategory), not silently orphan it.
+    @ManyToOne(() => RecipeCategory, { nullable: true })
+    @JoinColumn({ name: 'categoryId' })
+    category?: RecipeCategory | null;
+
+    @Column({ nullable: true, type: 'int' })
+    categoryId?: number | null;
 
     // Materials (BOM) -- which raw materials this recipe consumes and how
     // much of each per unit produced. Was 5 hardcoded columns (woodKg,

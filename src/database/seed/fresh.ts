@@ -15,9 +15,11 @@ import { Recipe } from '../../recipes/recipe.entity';
 import { RecipeTaskRate } from '../../recipes/recipe-task-rate.entity';
 import { RecipeMaterialUsage } from '../../recipes/recipe-material-usage.entity';
 import { RecipeStageStock } from '../../recipes/recipe-stage-stock.entity';
+import { RecipeCategory } from '../../recipes/recipe-category.entity';
 import { RawMaterial } from '../../raw-materials/raw-material.entity';
 import { MaterialBatch } from '../../material-batches/material-batch.entity';
 import { MaterialConsumption } from '../../material-consumptions/material-consumption.entity';
+import { MaterialMix } from '../../material-mixes/material-mix.entity';
 import { Car } from '../../cars/car.entity';
 import { Driver } from '../../drivers/driver.entity';
 import { Route } from '../../routes/route.entity';
@@ -44,6 +46,7 @@ import { seedPermissions } from './permission.seed';
 import { seedRawMaterials } from './raw-material.seed';
 import { seedWasteTypes } from './waste-type.seed';
 import { seedWoodTypes } from './wood-processing.seed';
+import { seedRecipeCategories } from './recipe-category.seed';
 
 const dataSource = new DataSource({
   type: 'postgres',
@@ -69,9 +72,11 @@ const dataSource = new DataSource({
     RecipeTaskRate,
     RecipeMaterialUsage,
     RecipeStageStock,
+    RecipeCategory,
     RawMaterial,
     MaterialBatch,
     MaterialConsumption,
+    MaterialMix,
     Car,
     Driver,
     Route,
@@ -117,6 +122,7 @@ async function fresh() {
   // kind of thing this module was built to keep out of code. Set them up
   // on the Wood Processing page's "Add Stage" form instead.
   await seedWoodTypes(dataSource);
+  await seedRecipeCategories(dataSource);
 
   await dataSource.destroy();
   console.log('Fresh + seeded.');

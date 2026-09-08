@@ -4,8 +4,18 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { google } from 'googleapis';
-import type { OAuth2Client } from 'google-auth-library';
 import { GoogleDriveConnection } from './google-drive-connection.entity';
+
+// Deriving the type from googleapis's own `google.auth.OAuth2` instead of
+// importing OAuth2Client from the standalone `google-auth-library` package
+// on purpose: googleapis bundles its own (transitive) copy of
+// google-auth-library, and npm can end up installing a second, differently
+// versioned copy for the direct dependency. TypeScript then treats the two
+// same-named classes as structurally incompatible types. Using
+// `InstanceType<typeof google.auth.OAuth2>` guarantees this always matches
+// whatever googleapis itself actually returns/expects, regardless of what
+// version anything else in node_modules resolved to.
+type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
