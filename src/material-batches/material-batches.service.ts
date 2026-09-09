@@ -1,8 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MaterialBatch } from './material-batch.entity';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
+import { MaterialMixesService } from '../material-mixes/material-mixes.service';
+import { MixRecipesService } from '../material-mixes/mix-recipes.service';
 import { round } from '../common/round';
 
 export interface CreateMaterialBatchInput {
@@ -25,10 +27,14 @@ export interface RawMaterialStockRow {
 
 @Injectable()
 export class MaterialBatchesService {
+  private readonly logger = new Logger(MaterialBatchesService.name);
+
   constructor(
     @InjectRepository(MaterialBatch)
     private batchRepository: Repository<MaterialBatch>,
     private rawMaterialsService: RawMaterialsService,
+    private mixRecipesService: MixRecipesService,
+    private materialMixesService: MaterialMixesService,
   ) {}
 
   getBatches(rawMaterialId?: number) {
@@ -71,7 +77,37 @@ export class MaterialBatchesService {
       quantityRemaining: data.quantityPurchased,
       purchaseDate: data.purchaseDate,
     });
-    return this.batchRepository.save(batch);
+    const saved = await this.batchRepository.save(batch);
+
+    // If this material is one of the two inputs on a saved Mix Recipe (see
+    // MixRecipe), automatically mix as much as that ratio now allows --
+    // buying more Color, say, tops up Gesso without a manual trip to the
+    // Material Mixing page. Best-effort: skipped (not failed) if there
+    // isn't enough of the OTHER input yet, since the purchase just recorded
+    // here should still succeed either way.
+    await this.runAutoMixesFor(rawMaterial.id, data.purchaseDate);
+
+    return saved;
+  }
+
+  private async runAutoMixesFor(rawMaterialId: number, mixDate: string) {
+    const recipes = await this.mixRecipesService.findActiveRecipesForMaterial(rawMaterialId);
+    for (const recipe of recipes) {
+      try {
+        await this.materialMixesService.createAutoMix({
+          materialAId: recipe.materialAId,
+          materialBId: recipe.materialBId,
+          outputMaterialId: recipe.outputMaterialId,
+          ratioA: recipe.ratioA,
+          ratioB: recipe.ratioB,
+          mixDate,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Auto-mix skipped for mix recipe #${recipe.id}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
   }
 
   // Batches are meant to be near-immutable purchase records -- this only

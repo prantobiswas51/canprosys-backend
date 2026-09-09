@@ -25,6 +25,7 @@ import { WoodProcessingModule } from './wood-processing/wood-processing.module';
 import { WasteManagementModule } from './waste-management/waste-management.module';
 import { MaintenanceCostsModule } from './maintenance-costs/maintenance-costs.module';
 import { SettingsModule } from './settings/settings.module';
+import { StockBackfillModule } from './stock-backfill/stock-backfill.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { SettingsModule } from './settings/settings.module';
     WasteManagementModule,
     MaintenanceCostsModule,
     SettingsModule,
+    StockBackfillModule,
   ],
 })
 export class AppModule {}

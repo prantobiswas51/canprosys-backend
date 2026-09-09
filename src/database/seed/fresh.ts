@@ -20,6 +20,7 @@ import { RawMaterial } from '../../raw-materials/raw-material.entity';
 import { MaterialBatch } from '../../material-batches/material-batch.entity';
 import { MaterialConsumption } from '../../material-consumptions/material-consumption.entity';
 import { MaterialMix } from '../../material-mixes/material-mix.entity';
+import { MixRecipe } from '../../material-mixes/mix-recipe.entity';
 import { Car } from '../../cars/car.entity';
 import { Driver } from '../../drivers/driver.entity';
 import { Route } from '../../routes/route.entity';
@@ -77,6 +78,7 @@ const dataSource = new DataSource({
     MaterialBatch,
     MaterialConsumption,
     MaterialMix,
+    MixRecipe,
     Car,
     Driver,
     Route,
