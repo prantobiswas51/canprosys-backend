@@ -11,6 +11,7 @@ import { Employee } from '../employees/employee.entity';
 import { Task } from '../tasks/task.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 import { WoodProcessingEntry } from '../wood-processing/wood-processing-entry.entity';
+import { CustomOrder } from '../custom-orders/custom-order.entity';
 
 // One row per (employee, daily entry) pair -- generated, not hand-created.
 // Fields are a snapshot at generation time (name/rate copied in as plain
@@ -60,8 +61,20 @@ export class Payout {
   @Column({ nullable: true })
   woodProcessingEntryId?: number;
 
+  // Set instead of dailyEntryId/woodProcessingEntryId when this payout came
+  // from completing a custom order (see CustomOrdersService.completeOrder)
+  // -- one row per (employee, task) picked in the completion popup.
+  @ManyToOne(() => CustomOrder, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'customOrderId' })
+  customOrder?: CustomOrder;
+
+  @Column({ nullable: true })
+  customOrderId?: number;
+
   // This employee's equal share of the entry's total weight -- entry.weightKg
-  // divided by however many artisans were on it.
+  // divided by however many artisans were on it. For a custom-order payout
+  // (customOrderId set) there's no "entry" to split, so this just holds the
+  // quantity entered for that employee's task directly.
   @Column('float')
   weightShare!: number;
 

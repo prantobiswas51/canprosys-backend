@@ -13,6 +13,7 @@ export interface RecordConsumptionInput {
   note?: string;
   dailyEntryId?: number;
   materialMixId?: number;
+  customOrderId?: number;
 }
 
 @Injectable()
@@ -102,6 +103,7 @@ export class MaterialConsumptionsService {
         note: data.note,
         dailyEntryId: data.dailyEntryId,
         materialMixId: data.materialMixId,
+        customOrderId: data.customOrderId,
       });
       created.push(await consumptionRepository.save(consumption));
 

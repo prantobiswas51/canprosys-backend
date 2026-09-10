@@ -26,6 +26,7 @@ import { WasteManagementModule } from './waste-management/waste-management.modul
 import { MaintenanceCostsModule } from './maintenance-costs/maintenance-costs.module';
 import { SettingsModule } from './settings/settings.module';
 import { StockBackfillModule } from './stock-backfill/stock-backfill.module';
+import { CustomOrdersModule } from './custom-orders/custom-orders.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { StockBackfillModule } from './stock-backfill/stock-backfill.module';
     MaintenanceCostsModule,
     SettingsModule,
     StockBackfillModule,
+    CustomOrdersModule,
   ],
 })
 export class AppModule {}

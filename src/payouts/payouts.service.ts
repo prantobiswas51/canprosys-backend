@@ -1,11 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, EntityManager, ILike, Repository } from 'typeorm';
 import { Payout } from './payout.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 import { Employee } from '../employees/employee.entity';
 import { RecipeTaskRate } from '../recipes/recipe-task-rate.entity';
+import { Task } from '../tasks/task.entity';
 import { round } from '../common/round';
+
+export interface CreateTaskPayoutInput {
+  employeeId: number;
+  taskId: number;
+  quantity: number;
+  // Overrides the task's own flat pricePerUnit for this one payout -- lets
+  // a rate be set on the spot (e.g. from the Custom Orders completion
+  // popup) for a task that doesn't have one configured yet, without having
+  // to go set it on the Tasks page first.
+  rate?: number;
+  customOrderId?: number;
+}
 
 export interface PayoutSummaryRow {
   employeeId: number;
@@ -22,6 +35,7 @@ export class PayoutsService {
     @InjectRepository(DailyEntry) private dailyEntryRepository: Repository<DailyEntry>,
     @InjectRepository(Employee) private employeeRepository: Repository<Employee>,
     @InjectRepository(RecipeTaskRate) private recipeTaskRateRepository: Repository<RecipeTaskRate>,
+    @InjectRepository(Task) private taskRepository: Repository<Task>,
   ) {}
 
   // No 'Z' suffix -- parsed as local time, which is Asia/Dhaka since
@@ -126,6 +140,60 @@ export class PayoutsService {
     }
 
     return { created, skipped, noRate: 0 };
+  }
+
+  // A standalone payout, not generated from a daily entry -- used by
+  // CustomOrdersService.completeOrder for "this employee did this task on
+  // this order, pay them for it". One row per call, unlike
+  // generatePayoutsForEntry which fans out to every artisan on an entry.
+  // Rate comes straight from the task's own flat pricePerUnit (custom
+  // orders have no recipe to look up a per-recipe override against).
+  async createTaskPayout(data: CreateTaskPayoutInput, manager?: EntityManager) {
+    if (!data.quantity || data.quantity <= 0) {
+      throw new BadRequestException('Quantity must be greater than zero');
+    }
+
+    const payoutRepository = manager ? manager.getRepository(Payout) : this.payoutRepository;
+    const employeeRepository = manager ? manager.getRepository(Employee) : this.employeeRepository;
+    const taskRepository = manager ? manager.getRepository(Task) : this.taskRepository;
+
+    const employee = await employeeRepository.findOneBy({ id: data.employeeId });
+    if (!employee) {
+      throw new NotFoundException(`Employee #${data.employeeId} not found`);
+    }
+    const task = await taskRepository.findOneBy({ id: data.taskId });
+    if (!task) {
+      throw new NotFoundException(`Task #${data.taskId} not found`);
+    }
+    if (data.rate != null && data.rate <= 0) {
+      throw new BadRequestException('Rate must be greater than zero');
+    }
+    const ratePerUnit = data.rate ?? task.pricePerUnit;
+    if (ratePerUnit == null) {
+      throw new BadRequestException(
+        `Task "${task.name}" has no rate set -- enter a rate for this row, or add one on the Tasks page.`,
+      );
+    }
+
+    const amount = round(data.quantity * ratePerUnit);
+    const periodMonth = new Date().toISOString().slice(0, 7);
+
+    const payout = payoutRepository.create({
+      employeeId: employee.id,
+      employeeName: employee.name,
+      taskId: task.id,
+      taskName: task.name,
+      customOrderId: data.customOrderId,
+      weightShare: data.quantity,
+      ratePerUnit,
+      amount,
+      periodMonth,
+    });
+    const saved = await payoutRepository.save(payout);
+
+    await employeeRepository.increment({ id: employee.id }, 'balance', amount);
+
+    return saved;
   }
 
   // Batch/backfill version -- walks every daily entry in a month and runs

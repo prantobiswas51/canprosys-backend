@@ -71,6 +71,11 @@ export class MaterialConsumption {
   @Column({ nullable: true })
   materialMixId?: number;
 
+  // Same idea again, for raw material cut against a custom order at
+  // completion time (see CustomOrdersService.completeOrder).
+  @Column({ nullable: true })
+  customOrderId?: number;
+
   @CreateDateColumn()
   consumedAt!: Date;
 }

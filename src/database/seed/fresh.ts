@@ -40,6 +40,7 @@ import { MaintenanceCategory } from '../../maintenance-costs/maintenance-categor
 import { MaintenanceCost } from '../../maintenance-costs/maintenance-cost.entity';
 import { GoogleDriveConnection } from '../../settings/google-drive-connection.entity';
 import { BackupLog } from '../../settings/backup-log.entity';
+import { CustomOrder } from '../../custom-orders/custom-order.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -98,6 +99,7 @@ const dataSource = new DataSource({
     MaintenanceCost,
     GoogleDriveConnection,
     BackupLog,
+    CustomOrder,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',

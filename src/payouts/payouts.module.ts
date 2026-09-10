@@ -6,9 +6,10 @@ import { Payout } from './payout.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 import { Employee } from '../employees/employee.entity';
 import { RecipeTaskRate } from '../recipes/recipe-task-rate.entity';
+import { Task } from '../tasks/task.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payout, DailyEntry, Employee, RecipeTaskRate])],
+  imports: [TypeOrmModule.forFeature([Payout, DailyEntry, Employee, RecipeTaskRate, Task])],
   controllers: [PayoutsController],
   providers: [PayoutsService],
   exports: [PayoutsService],
