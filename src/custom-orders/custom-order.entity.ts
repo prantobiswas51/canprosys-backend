@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { CustomOrderItem } from './custom-order-item.entity';
 
 export type CanvasType = 'circle' | 'square';
 export type CustomOrderStatus = 'pending' | 'in_progress' | 'completed';
@@ -18,23 +19,21 @@ export class CustomOrder {
   @Column({ unique: true })
   clientOrderNum!: string;
 
-  @Column('float')
-  width!: number;
-
-  @Column('float')
-  height!: number;
-
   @Column({ type: 'text', nullable: true })
   note!: string | null;
-
-  @Column()
-  canvasType!: CanvasType;
 
   @Column({ type: 'date' })
   deadline!: string;
 
   @Column({ default: 'pending' })
   status!: CustomOrderStatus;
+
+  // One order can carry more than one canvas line item (different sizes,
+  // types, quantities). cascade: true lets CustomOrdersService just attach
+  // an `items` array of brand-new CustomOrderItem instances and save the
+  // order -- TypeORM inserts them together in one go.
+  @OneToMany(() => CustomOrderItem, (item) => item.order, { cascade: true })
+  items!: CustomOrderItem[];
 
   @CreateDateColumn()
   createdAt!: Date;

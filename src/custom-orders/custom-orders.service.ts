@@ -2,22 +2,30 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CanvasType, CustomOrder, CustomOrderStatus } from './custom-order.entity';
+import { CustomOrderItem } from './custom-order-item.entity';
 import { round } from '../common/round';
 import { isUniqueViolation } from '../common/is-unique-violation';
 import { MaterialConsumptionsService } from '../material-consumptions/material-consumptions.service';
 import { PayoutsService } from '../payouts/payouts.service';
 
-export interface CreateCustomOrderInput {
-  clientOrderNum: string;
+export interface CustomOrderItemInput {
   width: number;
   height: number;
-  note?: string | null;
   canvasType: CanvasType;
-  deadline: string;
+  quantity: number;
 }
 
-export type UpdateCustomOrderInput = Partial<CreateCustomOrderInput> & {
+export interface CreateCustomOrderInput {
+  clientOrderNum: string;
+  note?: string | null;
+  deadline: string;
+  items: CustomOrderItemInput[];
+}
+
+export type UpdateCustomOrderInput = Partial<Omit<CreateCustomOrderInput, 'items'>> & {
   status?: CustomOrderStatus;
+  // Replaces the order's whole item set when present -- see updateOrder.
+  items?: CustomOrderItemInput[];
 };
 
 export interface CompleteOrderMaterialInput {
@@ -45,6 +53,8 @@ export class CustomOrdersService {
   constructor(
     @InjectRepository(CustomOrder)
     private orderRepository: Repository<CustomOrder>,
+    @InjectRepository(CustomOrderItem)
+    private itemRepository: Repository<CustomOrderItem>,
     private materialConsumptionsService: MaterialConsumptionsService,
     private payoutsService: PayoutsService,
   ) {}
@@ -52,12 +62,13 @@ export class CustomOrdersService {
   getOrders(status?: CustomOrderStatus) {
     return this.orderRepository.find({
       where: status ? { status } : {},
+      relations: ['items'],
       order: { id: 'DESC' },
     });
   }
 
   async getOrderById(id: number) {
-    const order = await this.orderRepository.findOneBy({ id });
+    const order = await this.orderRepository.findOne({ where: { id }, relations: ['items'] });
     if (!order) {
       throw new NotFoundException(`Custom order #${id} not found`);
     }
@@ -69,44 +80,61 @@ export class CustomOrdersService {
   // changing status) doesn't get tripped up demanding fields it isn't
   // touching. `requireAll` additionally demands the fields a brand new
   // order can't do without.
-  private validate(data: Partial<CreateCustomOrderInput>, requireAll: boolean) {
+  private validate(data: Partial<Omit<CreateCustomOrderInput, 'items'>>, requireAll: boolean) {
     if (requireAll && !data.clientOrderNum?.trim()) {
       throw new BadRequestException('clientOrderNum is required');
-    }
-    if (data.width != null && data.width <= 0) {
-      throw new BadRequestException('Width must be greater than zero');
-    }
-    if (requireAll && data.width == null) {
-      throw new BadRequestException('Width is required');
-    }
-    if (data.height != null && data.height <= 0) {
-      throw new BadRequestException('Height must be greater than zero');
-    }
-    if (requireAll && data.height == null) {
-      throw new BadRequestException('Height is required');
-    }
-    if (data.canvasType != null && !VALID_CANVAS_TYPES.includes(data.canvasType)) {
-      throw new BadRequestException(`canvasType must be one of: ${VALID_CANVAS_TYPES.join(', ')}`);
-    }
-    if (requireAll && data.canvasType == null) {
-      throw new BadRequestException('canvasType is required');
     }
     if (requireAll && !data.deadline) {
       throw new BadRequestException('deadline is required');
     }
   }
 
+  // Same idea for the item rows -- `requireAtLeastOne` is true for create
+  // (an order needs at least one canvas) and for update only when the
+  // caller actually sent an `items` array to replace.
+  private validateItems(items: CustomOrderItemInput[] | undefined, requireAtLeastOne: boolean) {
+    if (items == null) {
+      if (requireAtLeastOne) {
+        throw new BadRequestException('Add at least one item.');
+      }
+      return;
+    }
+    if (requireAtLeastOne && items.length === 0) {
+      throw new BadRequestException('Add at least one item.');
+    }
+    for (const item of items) {
+      if (!item.width || item.width <= 0) {
+        throw new BadRequestException('Each item needs a width greater than zero.');
+      }
+      if (!item.height || item.height <= 0) {
+        throw new BadRequestException('Each item needs a height greater than zero.');
+      }
+      if (!VALID_CANVAS_TYPES.includes(item.canvasType)) {
+        throw new BadRequestException(`canvasType must be one of: ${VALID_CANVAS_TYPES.join(', ')}`);
+      }
+      if (!item.quantity || item.quantity <= 0) {
+        throw new BadRequestException('Each item needs a quantity greater than zero.');
+      }
+    }
+  }
+
   async createOrder(data: CreateCustomOrderInput) {
     this.validate(data, true);
+    this.validateItems(data.items, true);
 
     const order = this.orderRepository.create({
       clientOrderNum: data.clientOrderNum.trim(),
-      width: round(data.width),
-      height: round(data.height),
       note: data.note?.trim() || null,
-      canvasType: data.canvasType,
       deadline: data.deadline,
       status: 'pending',
+      items: data.items.map((item) =>
+        this.itemRepository.create({
+          width: round(item.width),
+          height: round(item.height),
+          canvasType: item.canvasType,
+          quantity: round(item.quantity),
+        }),
+      ),
     });
     try {
       return await this.orderRepository.save(order);
@@ -121,12 +149,10 @@ export class CustomOrdersService {
   async updateOrder(id: number, data: UpdateCustomOrderInput) {
     const order = await this.getOrderById(id);
     this.validate(data, false);
+    this.validateItems(data.items, false);
 
     if (data.clientOrderNum != null) order.clientOrderNum = data.clientOrderNum.trim();
-    if (data.width != null) order.width = round(data.width);
-    if (data.height != null) order.height = round(data.height);
     if (data.note !== undefined) order.note = data.note?.trim() || null;
-    if (data.canvasType != null) order.canvasType = data.canvasType;
     if (data.deadline != null) order.deadline = data.deadline;
     if (data.status != null) {
       if (!VALID_STATUSES.includes(data.status)) {
@@ -136,6 +162,26 @@ export class CustomOrdersService {
     }
 
     try {
+      if (data.items != null) {
+        // Replace the whole item set atomically -- simplest correct way to
+        // reconcile an edited list (rows added/removed/resized) without
+        // diffing old vs new.
+        const items = data.items;
+        return await this.orderRepository.manager.transaction(async (manager) => {
+          const itemRepo = manager.getRepository(CustomOrderItem);
+          const orderRepo = manager.getRepository(CustomOrder);
+          await itemRepo.delete({ orderId: order.id });
+          order.items = items.map((item) =>
+            itemRepo.create({
+              width: round(item.width),
+              height: round(item.height),
+              canvasType: item.canvasType,
+              quantity: round(item.quantity),
+            }),
+          );
+          return orderRepo.save(order);
+        });
+      }
       return await this.orderRepository.save(order);
     } catch (err) {
       if (isUniqueViolation(err)) {

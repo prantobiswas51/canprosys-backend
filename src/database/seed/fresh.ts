@@ -41,6 +41,7 @@ import { MaintenanceCost } from '../../maintenance-costs/maintenance-cost.entity
 import { GoogleDriveConnection } from '../../settings/google-drive-connection.entity';
 import { BackupLog } from '../../settings/backup-log.entity';
 import { CustomOrder } from '../../custom-orders/custom-order.entity';
+import { CustomOrderItem } from '../../custom-orders/custom-order-item.entity';
 import { seedRoles } from './role.seed';
 import { seedDemoUsers } from './user.seed';
 import { seedTasks } from './task.seed';
@@ -100,6 +101,7 @@ const dataSource = new DataSource({
     GoogleDriveConnection,
     BackupLog,
     CustomOrder,
+    CustomOrderItem,
   ],
   extra: {
     options: '-c timezone=Asia/Dhaka',
