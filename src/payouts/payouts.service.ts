@@ -103,7 +103,10 @@ export class PayoutsService {
 
     const weightShare = round(entry.weightKg / entry.employees.length);
     const amount = round(weightShare * ratePerUnit);
-    const periodMonth = entry.createdAt.toISOString().slice(0, 7);
+    // entryDate (the day the work was actually logged for, via the form's
+    // date picker) drives which month this payout lands in -- falls back to
+    // createdAt for entries saved before entryDate existed.
+    const periodMonth = (entry.entryDate ?? entry.createdAt.toISOString().slice(0, 10)).slice(0, 7);
 
     let created = 0;
     let skipped = 0;

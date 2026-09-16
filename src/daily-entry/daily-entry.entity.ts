@@ -69,6 +69,13 @@ export class DailyEntry {
   @Column({ default: false })
   creditedProductStock!: boolean;
 
+  // Which day this work actually happened on -- defaults to today at create
+  // time (see DailyEntryService.applyEntry) but editable via the date picker
+  // on the form, e.g. to log yesterday's work entered late. Separate from
+  // createdAt, which always stays the real record-creation timestamp.
+  @Column({ type: 'date', nullable: true })
+  entryDate?: string;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

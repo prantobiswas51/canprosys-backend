@@ -45,6 +45,7 @@ export interface CreateDailyEntryInput {
   employeeIds: number[];
   weightKg: number;
   recipeId?: number;
+  entryDate?: string;
 }
 
 export type UpdateDailyEntryInput = CreateDailyEntryInput;
@@ -352,6 +353,7 @@ export class DailyEntryService {
       creditedStageTaskId:
         stagePosition && !stagePosition.isLastStage ? task.id : undefined,
       creditedProductStock: Boolean(stagePosition?.isLastStage),
+      entryDate: data.entryDate || new Date().toISOString().slice(0, 10),
     });
     const saved = await manager.save(entry);
 
