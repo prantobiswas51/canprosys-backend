@@ -1,0 +1,55 @@
+name: CI/CD - Backend
+
+# CI runs on every push/PR (build the app, make sure it compiles). CD (the
+# deploy job) only runs on a push to main, and only if CI passed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      # SSHes into the server and re-runs scripts/deploy.sh there (git pull +
+      # npm ci + npm run build + pm2 restart prodhouse) -- same script you'd
+      # run by hand, just triggered automatically on every push to main.
+      #
+      # Required repo secrets (Settings -> Secrets and variables -> Actions):
+      #   SSH_HOST          server IP/hostname
+      #   SSH_USERNAME      SSH user
+      #   SSH_KEY           private key with access to that user (no passphrase)
+      #   SSH_PORT          optional, defaults to 22
+      #   BACKEND_APP_DIR   absolute path to this app on the server,
+      #                     e.g. /home/canvas/apps/production-house/backend
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            cd "${{ secrets.BACKEND_APP_DIR }}"
+            bash scripts/deploy.sh
