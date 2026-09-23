@@ -20,4 +20,11 @@ export class Product {
 
     @Column('float')
     stock!: number;
+
+    // What this product actually sells for -- set manually per product
+    // (costPrice is computed live from its recipe, this isn't). Nullable
+    // since a product may exist before anyone's set a sell price for it yet;
+    // treated as "unknown" (not ৳0) everywhere it's used for profit math.
+    @Column('float', { nullable: true })
+    sellPrice?: number | null;
 }

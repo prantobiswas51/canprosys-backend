@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './product.entity';
 import { Repository } from 'typeorm';
@@ -14,6 +14,22 @@ export class ProductsService {
     async getProducts() {
         const products = await this.productRepository.find();
         return this.withComputedCost(products);
+    }
+
+    // Sets/clears the sell price a buyer actually pays for this product --
+    // separate from costPrice (which is always live-computed, never stored
+    // as the "real" number). Used by the Accounting summary to work out
+    // profit on current finished-goods stock.
+    async setSellPrice(id: number, sellPrice: number | null) {
+        const product = await this.productRepository.findOneBy({ id });
+        if (!product) {
+            throw new NotFoundException(`Product #${id} not found`);
+        }
+        if (sellPrice != null && sellPrice < 0) {
+            throw new BadRequestException('Sell price cannot be negative');
+        }
+        product.sellPrice = sellPrice;
+        return this.productRepository.save(product);
     }
 
     // Case-insensitive partial match on name, e.g. "canv" matches "Canvas".

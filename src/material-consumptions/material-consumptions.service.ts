@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { Between, EntityManager, Repository } from 'typeorm';
 import { MaterialConsumption } from './material-consumption.entity';
 import { MaterialBatch } from '../material-batches/material-batch.entity';
 import { RawMaterialsService } from '../raw-materials/raw-materials.service';
@@ -32,6 +32,21 @@ export class MaterialConsumptionsService {
       where: rawMaterialId != null ? { rawMaterialId } : {},
       order: { consumedAt: 'DESC' },
     });
+  }
+
+  // Sum of totalCost for every consumption row drawn in a given 'YYYY-MM'
+  // month -- this is the "material cost actually consumed" figure for the
+  // Accounting summary, as distinct from a recipe's theoretical BOM cost.
+  // consumedAt is a timestamp (not a date), so the range needs a time
+  // component on both ends.
+  async getMonthlyTotalCost(month: string): Promise<number> {
+    const [year, mon] = month.split('-').map(Number);
+    const from = new Date(year, mon - 1, 1);
+    const to = new Date(year, mon, 1);
+    const rows = await this.consumptionRepository.find({
+      where: { consumedAt: Between(from, to) },
+    });
+    return round(rows.reduce((sum, r) => sum + r.totalCost, 0));
   }
 
   async getConsumptionById(id: number) {

@@ -27,6 +27,7 @@ import { MaintenanceCostsModule } from './maintenance-costs/maintenance-costs.mo
 import { SettingsModule } from './settings/settings.module';
 import { StockBackfillModule } from './stock-backfill/stock-backfill.module';
 import { CustomOrdersModule } from './custom-orders/custom-orders.module';
+import { AccountingModule } from './accounting/accounting.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { CustomOrdersModule } from './custom-orders/custom-orders.module';
     SettingsModule,
     StockBackfillModule,
     CustomOrdersModule,
+    AccountingModule,
   ],
 })
 export class AppModule {}
