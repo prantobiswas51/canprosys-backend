@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { PayoutsService } from './payouts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -19,6 +19,19 @@ export class PayoutsController {
   @Get('summary')
   getSummary(@Query('month') month: string) {
     return this.payoutsService.getPayoutSummary(month);
+  }
+
+  // "Paid" button -- marks an employee's final payout (wages - loans) for the
+  // month as handed over.
+  @Post('settle')
+  settle(@Body() body: { employeeId: number; month: string }) {
+    return this.payoutsService.markPaid(Number(body.employeeId), body.month);
+  }
+
+  // Undo a misclicked Paid.
+  @Delete('settle')
+  unsettle(@Query('employeeId') employeeId: string, @Query('month') month: string) {
+    return this.payoutsService.undoPaid(Number(employeeId), month);
   }
 
   // Raw rows, optionally filtered by month and/or employee -- used for the

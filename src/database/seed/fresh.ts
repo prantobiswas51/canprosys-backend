@@ -28,6 +28,7 @@ import { Shipment } from '../../shipments/shipment.entity';
 import { ShipmentItem } from '../../shipments/shipment-item.entity';
 import { Loan } from '../../loans/loan.entity';
 import { Payout } from '../../payouts/payout.entity';
+import { PayoutSettlement } from '../../payouts/payout-settlement.entity';
 import { WoodType } from '../../wood-processing/wood-type.entity';
 import { WoodStage } from '../../wood-processing/wood-stage.entity';
 import { WoodStockBatch } from '../../wood-processing/wood-stock-batch.entity';
@@ -88,6 +89,7 @@ const dataSource = new DataSource({
     ShipmentItem,
     Loan,
     Payout,
+    PayoutSettlement,
     WoodType,
     WoodStage,
     WoodStockBatch,

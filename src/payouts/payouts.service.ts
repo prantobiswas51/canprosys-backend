@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, EntityManager, ILike, Repository } from 'typeorm';
 import { Payout } from './payout.entity';
+import { PayoutSettlement } from './payout-settlement.entity';
+import { Loan } from '../loans/loan.entity';
 import { DailyEntry } from '../daily-entry/daily-entry.entity';
 import { Employee } from '../employees/employee.entity';
 import { RecipeTaskRate } from '../recipes/recipe-task-rate.entity';
@@ -25,13 +27,22 @@ export interface PayoutSummaryRow {
   employeeName: string;
   totalWeight: number;
   entryCount: number;
+  // Wages earned this month (sum of Payout.amount).
   totalPayout: number;
+  // Loans handed out to this employee this month.
+  loanTotal: number;
+  // totalPayout - loanTotal -- what actually gets paid out.
+  finalPayout: number;
+  // Set once the Paid button has been clicked for this employee + month.
+  paid: { paidAt: Date; amount: number } | null;
 }
 
 @Injectable()
 export class PayoutsService {
   constructor(
     @InjectRepository(Payout) private payoutRepository: Repository<Payout>,
+    @InjectRepository(PayoutSettlement) private settlementRepository: Repository<PayoutSettlement>,
+    @InjectRepository(Loan) private loanRepository: Repository<Loan>,
     @InjectRepository(DailyEntry) private dailyEntryRepository: Repository<DailyEntry>,
     @InjectRepository(Employee) private employeeRepository: Repository<Employee>,
     @InjectRepository(RecipeTaskRate) private recipeTaskRateRepository: Repository<RecipeTaskRate>,
@@ -236,24 +247,115 @@ export class PayoutsService {
   }
 
   async getPayoutSummary(month: string): Promise<PayoutSummaryRow[]> {
-    const payouts = await this.payoutRepository.find({ where: { periodMonth: month } });
+    const [payouts, loans, settlements] = await Promise.all([
+      this.payoutRepository.find({ where: { periodMonth: month } }),
+      this.loanRepository.find({ where: { periodMonth: month } }),
+      this.settlementRepository.find({ where: { periodMonth: month } }),
+    ]);
 
     const map = new Map<number, PayoutSummaryRow>();
+    const blankRow = (employeeId: number, employeeName: string): PayoutSummaryRow => ({
+      employeeId,
+      employeeName,
+      totalWeight: 0,
+      entryCount: 0,
+      totalPayout: 0,
+      loanTotal: 0,
+      finalPayout: 0,
+      paid: null,
+    });
+
     for (const p of payouts) {
-      const row = map.get(p.employeeId) ?? {
-        employeeId: p.employeeId,
-        employeeName: p.employeeName,
-        totalWeight: 0,
-        entryCount: 0,
-        totalPayout: 0,
-      };
+      const row = map.get(p.employeeId) ?? blankRow(p.employeeId, p.employeeName);
       row.totalWeight = round(row.totalWeight + p.weightShare);
       row.entryCount += 1;
       row.totalPayout = round(row.totalPayout + p.amount);
       map.set(p.employeeId, row);
     }
 
+    // Employees who took a loan but have no wages yet this month still get
+    // a row -- their final payout is just the negative of the loan.
+    for (const l of loans) {
+      const row = map.get(l.employeeId) ?? blankRow(l.employeeId, l.employeeName);
+      row.loanTotal = round(row.loanTotal + l.amount);
+      map.set(l.employeeId, row);
+    }
+
+    for (const s of settlements) {
+      const row = map.get(s.employeeId);
+      if (row) row.paid = { paidAt: s.paidAt, amount: s.amount };
+    }
+
+    for (const row of map.values()) {
+      row.finalPayout = round(row.totalPayout - row.loanTotal);
+    }
+
     return Array.from(map.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }
+
+  // The "Paid" button: records that this employee has been handed their
+  // final payout (wages - loans) for the month, and debits Employee.balance
+  // by that amount so the running balance stays in step with real cash out.
+  // The figures are recomputed here from the database, never trusted from
+  // the client.
+  async markPaid(employeeId: number, month: string) {
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new BadRequestException('month must be YYYY-MM');
+    }
+
+    return this.settlementRepository.manager.transaction(async (manager) => {
+      const employee = await manager.findOneBy(Employee, { id: employeeId });
+      if (!employee) {
+        throw new NotFoundException(`Employee #${employeeId} not found`);
+      }
+
+      const existing = await manager.findOneBy(PayoutSettlement, { employeeId, periodMonth: month });
+      if (existing) {
+        throw new ConflictException(`${employee.name} is already marked paid for ${month}.`);
+      }
+
+      const [payouts, loans] = await Promise.all([
+        manager.find(Payout, { where: { employeeId, periodMonth: month } }),
+        manager.find(Loan, { where: { employeeId, periodMonth: month } }),
+      ]);
+      const wages = round(payouts.reduce((sum, p) => sum + p.amount, 0));
+      const loanTotal = round(loans.reduce((sum, l) => sum + l.amount, 0));
+      const amount = round(wages - loanTotal);
+
+      if (amount <= 0) {
+        throw new BadRequestException(
+          `Final payout for ${employee.name} in ${month} is ৳${amount} -- nothing to pay out.`,
+        );
+      }
+
+      const settlement = await manager.save(
+        manager.create(PayoutSettlement, {
+          employeeId,
+          employeeName: employee.name,
+          periodMonth: month,
+          wages,
+          loans: loanTotal,
+          amount,
+        }),
+      );
+      await manager.increment(Employee, { id: employeeId }, 'balance', -amount);
+
+      return settlement;
+    });
+  }
+
+  // Undo for a misclicked Paid -- removes the record and restores the
+  // balance it debited.
+  async undoPaid(employeeId: number, month: string) {
+    return this.settlementRepository.manager.transaction(async (manager) => {
+      const settlement = await manager.findOneBy(PayoutSettlement, { employeeId, periodMonth: month });
+      if (!settlement) {
+        throw new NotFoundException(`No paid record for employee #${employeeId} in ${month}.`);
+      }
+      await manager.remove(settlement);
+      await manager.increment(Employee, { id: employeeId }, 'balance', settlement.amount);
+      return { undone: true };
+    });
   }
 
   // Name/phone lookup + full earnings picture for one employee -- what the
