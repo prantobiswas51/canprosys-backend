@@ -69,4 +69,48 @@ export class StockBackfillService {
     product.stock = round(product.stock + quantity);
     return this.productRepository.save(product);
   }
+
+  // Mirror of addStageStock for correcting an over-count -- deducts from
+  // what's on record, and refuses to go below zero instead of clamping so a
+  // typo can't silently wipe out more than what exists.
+  async reduceStageStock(recipeId: number, taskId: number, quantity: number) {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new BadRequestException('Quantity must be greater than zero');
+    }
+    const recipe = await this.recipesService.getRecipeById(recipeId);
+    const taskRate = (recipe.taskRates ?? []).find((tr) => tr.taskId === taskId);
+    if (!taskRate) {
+      throw new BadRequestException(`That task isn't one of recipe "${recipe.product}"'s configured tasks.`);
+    }
+
+    const row = await this.stageStockRepository.findOneBy({ recipeId, taskId });
+    const current = row?.quantity ?? 0;
+    if (!row || quantity > current) {
+      throw new BadRequestException(
+        `Can't reduce by ${quantity} -- only ${current} is on record for "${recipe.product}" at ${taskRate.taskName}.`,
+      );
+    }
+    row.quantity = round(current - quantity);
+    return this.stageStockRepository.save(row);
+  }
+
+  async reduceFinishedStock(recipeId: number, quantity: number) {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new BadRequestException('Quantity must be greater than zero');
+    }
+    const recipe = await this.recipesService.getRecipeById(recipeId);
+    if (!recipe.sku) {
+      throw new BadRequestException(`Recipe "${recipe.product}" has no SKU set.`);
+    }
+
+    const product = await this.productRepository.findOneBy({ sku: recipe.sku });
+    const current = product?.stock ?? 0;
+    if (!product || quantity > current) {
+      throw new BadRequestException(
+        `Can't reduce by ${quantity} -- only ${current} finished "${recipe.product}" is on record.`,
+      );
+    }
+    product.stock = round(current - quantity);
+    return this.productRepository.save(product);
+  }
 }

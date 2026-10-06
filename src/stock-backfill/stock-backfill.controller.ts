@@ -21,4 +21,18 @@ export class StockBackfillController {
   addFinishedStock(@Param('recipeId', ParseIntPipe) recipeId: number, @Body('quantity') quantity: number) {
     return this.stockBackfillService.addFinishedStock(recipeId, Number(quantity));
   }
+
+  @Put('recipes/:recipeId/stage-stock/:taskId/reduce')
+  reduceStageStock(
+    @Param('recipeId', ParseIntPipe) recipeId: number,
+    @Param('taskId', ParseIntPipe) taskId: number,
+    @Body('quantity') quantity: number,
+  ) {
+    return this.stockBackfillService.reduceStageStock(recipeId, taskId, Number(quantity));
+  }
+
+  @Put('recipes/:recipeId/finished-stock/reduce')
+  reduceFinishedStock(@Param('recipeId', ParseIntPipe) recipeId: number, @Body('quantity') quantity: number) {
+    return this.stockBackfillService.reduceFinishedStock(recipeId, Number(quantity));
+  }
 }
